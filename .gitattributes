@@ -1,0 +1,39 @@
+# The repository is developed on Windows and built/run on Linux (CI, containers).
+# Normalize every text file to LF in the repository and in the working tree so that
+# diffs, lint, and CI behave identically on every platform.
+* text=auto eol=lf
+
+# Shell scripts are executed in Linux containers — LF is mandatory.
+*.sh text eol=lf
+
+# Windows batch scripts require CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Images
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.avif binary
+*.pdf binary
+
+# SVG is text and should stay diffable
+*.svg text eol=lf
+
+# Fonts
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+
+# Archives
+*.zip binary
+*.gz binary
+*.tgz binary
+*.bz2 binary
+*.7z binary
+*.rar binary
