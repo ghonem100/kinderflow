@@ -111,7 +111,15 @@
 
 ---
 
-## KF-S0-INFRA-001 — Initialize git repository and commit baseline
+## KF-S0-INFRA-001 — Initialize git repository and commit baseline ✅ DONE
+
+> **Status:** DONE · 2026-08-10 · commit `b561a5b` (root, branch `main`) · 47 files, 6,860 insertions
+> **PR:** none — no remote exists yet (`KF-S0-OPS-001` provisions remote + branch protection). Direct commit on `main` is the only possible path for the repository-creating task; recorded as an accepted, one-time process deviation.
+> **Evidence (independently verified by the planner):** branch `main`; 1 commit; message exactly `docs: import approved phase 0-9 documentation`; 47 tracked files (38 docs + README + 6 `.gitkeep` + `.gitignore` + `.gitattributes`); `git status --porcelain` empty; `git remote -v` empty; diff contains create-mode entries only (0 modifications); `git check-ignore` confirms node_modules/dist/.next/.turbo/coverage/.env/*.tsbuildinfo ignored while `.env.example`, `.github/**`, and `.claude/settings.json` are NOT ignored; committed blobs contain 0 CR bytes despite host `core.autocrlf=true`.
+> **Secret scan:** clean (private keys, provider tokens, assigned credentials, connection strings, high-entropy literals, secret-bearing filenames — 0 findings; 179 keyword hits all design prose).
+> **DoD:** items 12 and 16 applicable and satisfied; item 10 verification executed per spec ("Testing Requirements — None"); item 17 (CI green) not evaluable — no pipeline exists (MISS-04), no gate weakened or bypassed; items 1–9, 11, 13–15 not applicable with reasons recorded in the completion report.
+> **Discrepancies/risks:** D-1 resolved (this file amended, see below). O-3 commit trailer intentionally omitted — message matches the literal acceptance criterion. DISC-005 remains OPEN pending `KF-S0-OPS-001`. R-1: DoD-17 unevaluable until CI exists — no register change required; the condition is a known baseline gap, not a new risk.
+> **Unlocks:** `KF-S0-INFRA-002`, `KF-S0-OPS-001`.
 
 **Objective** — Put the project under version control with the approved conventions from the first commit.
 
@@ -121,7 +129,9 @@
 
 **Files / Areas** — repository root: `.gitignore`, `.gitattributes`, initial commit.
 
-**Implementation Requirements** — `git init`; `.gitignore` covering node/next/turbo/prisma/env/coverage/build outputs; `.gitattributes` for line endings; commit existing docs as the initial commit using a Conventional Commit message (`docs: import approved phase 0-8 documentation`); default branch `main`.
+**Implementation Requirements** — `git init`; `.gitignore` covering node/next/turbo/prisma/env/coverage/build outputs; `.gitattributes` for line endings; commit existing docs as the initial commit using a Conventional Commit message (`docs: import approved phase 0-9 documentation`); default branch `main`.
+
+> **Amendment 2026-08-10 (D-1, cosmetic):** message string corrected from "phase 0-8" to "phase 0-9" — Phase 9 execution documents exist and were part of the baseline import. No behavioral change.
 
 **Security Requirements** — Verify no secrets exist in the imported tree before first commit (manual scan; automated in `KF-S0-CI-004`).
 
