@@ -31,10 +31,10 @@ Severity scale: **P0** blocks Sprint 0 · **P1** must resolve within Sprint 0–
 | Document | Root `README.md` vs. Engineering Blueprint §1 |
 | Current implementation | README's "Repository Structure" table lists `backend/`, `frontend/`, `mobile-parent/`, `mobile-teacher/` as the architecture |
 | Approved design | Monorepo layout (DISC-001); README should be the quickstart + workspace map per Sprint 0 Guide §9 |
-| Impact | Onboarding confusion; README is the first artifact a new engineer reads |
+| Impact | **Escalated 2026-08-10 (after `KF-S0-INFRA-002`):** the README no longer merely describes a superseded layout — it points at `backend/` and `frontend/`, directories that have been deleted. It is now actively wrong, and it is the first artifact a new engineer reads |
 | Recommended resolution | Rewrite README in `KF-S0-DOC-001` per Sprint 0 Guide §9 (quickstart, workspace map, links to phase docs) |
 | ADR required | No |
-| Priority | **P1** |
+| Priority | **P0** (escalated from P1 on 2026-08-10 — stale paths, not merely stale prose) |
 
 ## DISC-003 — TR-10 spike not executed; ADR-010 does not exist
 

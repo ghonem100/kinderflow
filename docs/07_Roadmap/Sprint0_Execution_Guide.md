@@ -17,7 +17,7 @@
 
 ```
 pnpm init  (root, private: true, packageManager pinned: pnpm@9.x)
-→ pnpm-workspace.yaml: packages: [apps/*, packages/*, tooling/*]
+→ pnpm-workspace.yaml: packages: [apps/*, packages/*, tooling/*, configs/*]
 → add turbo (root devDep) + turbo.json
 → git init, .gitignore (node, next, prisma, env, coverage, .turbo)
 → create workspace skeleton (below) with per-package package.json + tsconfig

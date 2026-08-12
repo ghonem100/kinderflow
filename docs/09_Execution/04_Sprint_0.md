@@ -143,7 +143,16 @@
 
 ---
 
-## KF-S0-INFRA-002 — Create pnpm workspace and monorepo tree
+## KF-S0-INFRA-002 — Create pnpm workspace and monorepo tree ✅ DONE
+
+> **Status:** DONE · 2026-08-10 · commit `1bfb9c0` (19 files, +127) · preceded by housekeeping commit `4e662c6`
+> **PR:** none — no remote yet (`KF-S0-OPS-001`); same accepted deviation as INFRA-001.
+> **Evidence (independently verified by the planner):** 3 commits on `main`, tree clean; root `package.json` private with `packageManager: pnpm@9.15.9` + `engines.node >=22`, zero deps; `pnpm-workspace.yaml` with all four approved globs; `.npmrc` = the two approved settings only; 7 workspace members created as `@kf/{api,web,contracts,tokens,ui,i18n,shared}`, each `{name,version,private}` with no deps; `pnpm install --frozen-lockfile` on a **genuine fresh clone** exits 0 under pnpm 9.15.9 with the clone left git-clean; `backend/` and `frontend/` removed via `git rm`; `mobile-parent/`/`mobile-teacher/` contain only the ADR-009 V2 README.
+> **Deferred within scope (documented in-place):** `configs/*` and `tooling/*` members are INFRA-003 and the CI-gate tasks; each directory README names its owning task. pnpm 9.15.9 emitted **no warning** for the empty globs, so no placeholder package was added and the approved globs stand unchanged.
+> **DoD:** items 10, 12, 16 applicable and satisfied; item 17 (CI green) not evaluable — no pipeline exists (MISS-04), no gate weakened; items 1–9, 11, 13–15 not applicable with reasons recorded.
+> **Decisions resolved:** R-2 → **stay on pnpm 9.15.9**; `KF-S0-CI-001` **must** pin 9.15.9 via `packageManager` + corepack or the lockfile will churn across majors. D-4 → Sprint 0 Guide §1.1 amended to include `configs/*`.
+> **Raised:** DISC-002 escalated P1 → **P0** (README now points at deleted paths) — `KF-S0-DOC-001` to be pulled forward. O-6: Node is nvm-managed with no active version on the build host; capture in the development guide (`KF-S0-DOC-001`) and the CI runner setup (`KF-S0-CI-001`). O-5: `workspace:*` edges land with the first real internal dependency (`@kf/ui` → `@kf/tokens`).
+> **Unlocks:** `KF-S0-INFRA-003`.
 
 **Objective** — Establish the approved workspace layout so that all subsequent work lands in the right place.
 
@@ -245,6 +254,8 @@
 **Files / Areas** — `.github/workflows/ci.yml`.
 
 **Implementation Requirements** — Jobs: setup (pnpm cache + turbo cache), lint, typecheck, test (unit + integration with Testcontainers services), coverage threshold (domain/application ≥80%), build (+ Docker images on `main`).
+
+> **Note added 2026-08-10 (from KF-S0-INFRA-002, R-2/O-6):** the runner **must** pin pnpm **9.15.9** (via corepack + the root `packageManager` field) — a different major will churn the lockfile. The runner must also select Node ≥22 explicitly; the build host uses nvm with no default active version.
 
 **Acceptance Criteria**
 1. A PR triggers all jobs; each is individually required by branch protection.
@@ -667,6 +678,8 @@
 **Source of Truth** — Sprint 0 Guide §9; Blueprint §12; DISC-002.
 
 **Dependencies** — `KF-S0-OPS-002`, `KF-S0-CI-003`.
+
+> **Priority note 2026-08-10:** DISC-002 escalated to **P0** — after `KF-S0-INFRA-002` the README references `backend/` and `frontend/`, which no longer exist. Pull this task forward ahead of its listed position. The development guide must also record the toolchain prerequisites found in O-6 (Node ≥22 selected explicitly; nvm has no default on the build host) and the pinned pnpm 9.15.9.
 
 **Implementation Requirements** — Rewrite root README (quickstart, workspace map, links); `docs/development-guide.md` (setup, commands, test tiers incl. running the isolation suite locally, migration workflow with the annotation convention, "adding an endpoint" OpenAPI-first checklist, "adding a component" token/QA checklist); `docs/architecture-overview.md` (2-page orientation linking to phase docs, no duplication); update SAD §12 ADR table to include ADR-010.
 
