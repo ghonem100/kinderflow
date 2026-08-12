@@ -1,0 +1,12 @@
+{
+  "name": "@kf/config-prettier",
+  "version": "0.0.0",
+  "private": true,
+  "main": "index.json",
+  "files": [
+    "index.json"
+  ],
+  "peerDependencies": {
+    "prettier": "^3.0.0"
+  }
+}
