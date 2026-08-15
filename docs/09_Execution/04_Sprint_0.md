@@ -177,7 +177,42 @@
 
 ---
 
-## KF-S0-INFRA-003 — Shared configs package
+## KF-S0-INFRA-003 — Shared configs package ✅ DONE
+
+> **Status:** DONE · 2026-08-10 · commit `0940c3b` (17 files, +1430/−10) · preceded by housekeeping `978ca4d`
+> **PR:** none — no remote yet (`KF-S0-OPS-001`); same accepted deviation.
+> **Evidence (independently verified by the planner):** 5 commits, tree clean; `configs/ts/tsconfig.base.json` carries strict + `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes` + ES2022 + bundler resolution, with `composite`/`references` deliberately absent (INFRA-004); ESLint 9 flat config with `base`/`web` subpath exports; `__fixtures__` excluded from normal lint runs; web rules scoped to `apps/web/**` + `packages/ui/**` via `WEB_SCOPE`; a single Prettier config with **zero** competing configs anywhere (verified by JSON key parse, not grep); 7/7 fixture assertions pass via `pnpm lint:rules` using Node 22's built-in runner — **no test framework installed** (D-6 honored).
+> **Decisions resolved:** R-6 → **broaden the RTL rule** (follow-up `KF-S0-INFRA-003a`). O-7 → Prettier values **accepted as canonical house style** (100 cols, single quotes, semicolons, trailing commas, LF matching `.gitattributes`). O-8 → `typescript-eslint` accepted as authorized-by-implication: Blueprint §12 mandates "no `any` (lint error)" on TypeScript, which is unenforceable without it; recorded rather than treated as a new technology choice.
+> **Carried forward:** R-4 → `KF-S0-CI-001` must use the glob form `node --test "configs/eslint/test/**/*.test.mjs"` (the directory form fails on Node 22). R-5 → custom-rule false-positive surface is unmeasured until components exist; revisit at `KF-S0-FE-003`. O-9 → cold `pnpm install` on the Windows host exceeded 10 minutes (warm: 4.8 s); record in the development guide.
+> **Dependencies added (root, exact):** eslint 9.39.5, @eslint/js 9.39.5, typescript-eslint 8.67.0, typescript 5.9.3, prettier 3.9.6. No peer warnings. TypeScript pinned to 5.9.3 (not 7.x) to stay inside typescript-eslint's `<6.1.0` peer range — correct call.
+> **DoD:** 10, 12, 16 applicable and satisfied; 17 not evaluable (no CI); 1–9, 11, 13–15 not applicable with reasons.
+> **Unlocks:** `KF-S0-INFRA-003a`, `KF-S0-INFRA-004`.
+
+---
+
+## KF-S0-INFRA-003a — Broaden the RTL physical-utility rule (follow-up)
+
+**Objective** — Close the gap between the implemented rule (the six utilities the spec enumerated) and Design System §2.6's actual intent ("no `left/right` in any component spec"), while it is still free to do so — no component source exists yet.
+
+**Source of Truth** — Design System §2.6 (RTL tokens & rules), §04–§05; Blueprint §12; planner decision R-6 (2026-08-10).
+
+**Dependencies** — `KF-S0-INFRA-003`.
+
+**Files / Areas** — `configs/eslint/web.mjs`, `configs/__fixtures__/physical-direction.fixture.ts`, `configs/__fixtures__/clean.fixture.ts`, `configs/README.md`.
+
+**Implementation Requirements** — Extend the physical-direction pattern beyond `pl-/pr-/ml-/mr-/left-/right-` to the remaining directional Tailwind utilities that have logical equivalents: `border-l-*`/`border-r-*` (→ `border-s-*`/`border-e-*`), `rounded-l-*`/`rounded-r-*`/`rounded-tl-*`/`rounded-tr-*`/`rounded-bl-*`/`rounded-br-*` (→ `rounded-s-*`/`rounded-e-*`/`rounded-ss-*` etc.), `text-left`/`text-right` (→ `text-start`/`text-end`), `float-left`/`float-right` (→ `float-start`/`float-end`), `clear-left`/`clear-right` (→ `clear-start`/`clear-end`), `scroll-ml-*`/`scroll-mr-*` (→ `scroll-ms-*`/`scroll-me-*`), `scroll-pl-*`/`scroll-pr-*` (→ `scroll-ps-*`/`scroll-pe-*`). Keep the same message shape: name the logical replacement.
+
+> **Planner correction 2026-08-10 (pre-handoff):** an earlier draft of this task listed `inset-l-*`/`inset-r-*`. **No such Tailwind utility exists** — horizontal insets are `left-*`/`right-*` (already banned by `KF-S0-INFRA-003`, logical equivalents `start-*`/`end-*`) plus `inset-x-*` (direction-neutral, correctly allowed). Removed before implementation. **Rule of thumb for this task: ban a utility only if a logical replacement exists.** Utilities such as `origin-left` or `bg-left` have no logical counterpart in Tailwind and must NOT be banned — a rule that cannot name a replacement is a rule engineers will disable. Preserve the existing variant-prefix, negative-value, and template-literal handling.
+
+**Security Requirements** — None.
+
+**Testing Requirements** — Extend `physical-direction.fixture.ts` with one case per newly banned family; extend `clean.fixture.ts` with the corresponding logical equivalents plus near-miss strings that must **not** trip (e.g. `text-start`, a token name containing `border`, prose containing "left"). All assertions run through the existing `pnpm lint:rules`.
+
+**Acceptance Criteria** — (1) `border-l-2`, `rounded-tl-lg`, `text-left`, and `float-right` each fail lint with a message naming their logical replacement. (2) `border-s-2`, `rounded-ss-lg`, `text-start`, `float-start` all pass. (3) The clean fixture still reports zero problems — the broadened pattern is not over-broad. (4) Fixture assertion count increases and `pnpm lint:rules` stays green.
+
+**Definition of Done (additions)** — `configs/README.md` documents the full banned set so component authors can read one list.
+
+**Risk** Low · **Complexity** S
 
 **Objective** — One source for TypeScript, ESLint, and Prettier configuration, including the KinderFlow-specific lint rules.
 
@@ -256,6 +291,8 @@
 **Implementation Requirements** — Jobs: setup (pnpm cache + turbo cache), lint, typecheck, test (unit + integration with Testcontainers services), coverage threshold (domain/application ≥80%), build (+ Docker images on `main`).
 
 > **Note added 2026-08-10 (from KF-S0-INFRA-002, R-2/O-6):** the runner **must** pin pnpm **9.15.9** (via corepack + the root `packageManager` field) — a different major will churn the lockfile. The runner must also select Node ≥22 explicitly; the build host uses nvm with no default active version.
+>
+> **Note added 2026-08-10 (from KF-S0-INFRA-003, R-4):** adopt `pnpm lint:rules` as a blocking gate — it is already shaped as a single exit-code-bearing command. Use the glob form `node --test "configs/eslint/test/**/*.test.mjs"`; the directory form (`node --test <dir>`) fails on Node 22.
 
 **Acceptance Criteria**
 1. A PR triggers all jobs; each is individually required by branch protection.
@@ -604,6 +641,8 @@
 
 **Dependencies** — `KF-S0-FE-002`.
 
+> **Note added 2026-08-10 (from KF-S0-INFRA-003, R-5):** this is the first task that puts real source under the custom lint rules' scope. Measure the false-positive rate of the physical-direction and raw-hex/px rules here and report it; a false positive is escapable with a visible `eslint-disable-next-line`, but a pattern of them means the rule needs tightening.
+
 **Implementation Requirements** — shadcn/ui initialized into `packages/ui` themed by tokens; deliver Button (primary/secondary/ghost/destructive/kiosk/ai + loading), Input, Badge (semantic enum map), Skeleton, Toast; every component with all states, RTL, dark, and a11y attributes per §19.
 
 **Testing Requirements** — Component tests for states and a11y roles; axe check in the component test run.
@@ -679,6 +718,8 @@
 
 **Dependencies** — `KF-S0-OPS-002`, `KF-S0-CI-003`.
 
+> **Note added 2026-08-10 (from KF-S0-INFRA-003, O-7/O-9):** record the confirmed house Prettier style (100 cols, single quotes, semicolons, trailing commas, LF) as settled — it is not specified by any earlier document and should not be re-litigated. Also record the toolchain reality: a cold `pnpm install` on a Windows volume exceeded 10 minutes (warm: ~5 s), so first-time setup expectations must be stated.
+>
 > **Priority note 2026-08-10:** DISC-002 escalated to **P0** — after `KF-S0-INFRA-002` the README references `backend/` and `frontend/`, which no longer exist. Pull this task forward ahead of its listed position. The development guide must also record the toolchain prerequisites found in O-6 (Node ≥22 selected explicitly; nvm has no default on the build host) and the pinned pnpm 9.15.9.
 
 **Implementation Requirements** — Rewrite root README (quickstart, workspace map, links); `docs/development-guide.md` (setup, commands, test tiers incl. running the isolation suite locally, migration workflow with the annotation convention, "adding an endpoint" OpenAPI-first checklist, "adding a component" token/QA checklist); `docs/architecture-overview.md` (2-page orientation linking to phase docs, no duplication); update SAD §12 ADR table to include ADR-010.

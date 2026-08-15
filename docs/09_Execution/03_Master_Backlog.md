@@ -93,6 +93,7 @@ Complexity: **S** ≤½ day · **M** ~1 day · **L** 2–3 days · **XL** split 
 | KF-S0-INFRA-001 | Initialize git repository and commit conventions baseline | S | Low |
 | KF-S0-INFRA-002 | Create pnpm workspace + monorepo folder tree | M | Low |
 | KF-S0-INFRA-003 | Shared configs package (tsconfig base, ESLint, Prettier) | M | Low |
+| KF-S0-INFRA-003a | Broaden RTL physical-utility lint rule (follow-up, R-6) | S | Low |
 | KF-S0-INFRA-004 | Turborepo pipeline + TypeScript project references | M | Medium |
 | KF-S0-INFRA-005 | Husky, lint-staged, commitlint, Changesets, Renovate | S | Low |
 | KF-S0-OPS-001 | GitHub remote, branch protection, CODEOWNERS | S | Low |
