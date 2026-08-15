@@ -14,9 +14,51 @@ Shared base configuration consumed by every workspace package — **one source, 
 
 | Rule | Scope | Enforces |
 |---|---|---|
-| no-physical-direction-classes | `apps/web`, `packages/ui` | No `pl-`, `pr-`, `ml-`, `mr-`, `left-`, `right-`. Error message names the logical replacement (`ps-*` for `pl-*`, …). Design System §2.6 |
+| no-physical-direction-classes | `apps/web`, `packages/ui` | No directional Tailwind utility that has a logical equivalent — full list below. Each error names **its own** replacement. Design System §2.6 |
 | no-raw-token-values | `apps/web`, `packages/ui` | No raw hex colors, no raw `px` values. Error message points to `@kf/tokens`. Design System §02, §2.3–§2.5 |
 | no `any` | repository-wide | `@typescript-eslint/no-explicit-any` as an **error**. Blueprint §12 |
+
+### The banned directional set (KF-S0-INFRA-003a)
+
+Design System §2.6: *"no `left/right` in any component spec."* Every utility below has a Tailwind logical equivalent, so every one is banned and every error names its replacement.
+
+| Physical utility | Use instead | Property |
+|---|---|---|
+| `pl-*` | `ps-*` | padding inline-start |
+| `pr-*` | `pe-*` | padding inline-end |
+| `ml-*` | `ms-*` | margin inline-start |
+| `mr-*` | `me-*` | margin inline-end |
+| `left-*` | `start-*` | inset inline-start |
+| `right-*` | `end-*` | inset inline-end |
+| `border-l-*` | `border-s-*` | border inline-start |
+| `border-r-*` | `border-e-*` | border inline-end |
+| `rounded-l-*` | `rounded-s-*` | both inline-start corners |
+| `rounded-r-*` | `rounded-e-*` | both inline-end corners |
+| `rounded-tl-*` | `rounded-ss-*` | start-start corner |
+| `rounded-tr-*` | `rounded-se-*` | start-end corner |
+| `rounded-bl-*` | `rounded-es-*` | end-start corner |
+| `rounded-br-*` | `rounded-ee-*` | end-end corner |
+| `scroll-ml-*` | `scroll-ms-*` | scroll margin inline-start |
+| `scroll-mr-*` | `scroll-me-*` | scroll margin inline-end |
+| `scroll-pl-*` | `scroll-ps-*` | scroll padding inline-start |
+| `scroll-pr-*` | `scroll-pe-*` | scroll padding inline-end |
+| `text-left` | `text-start` | text alignment |
+| `text-right` | `text-end` | text alignment |
+| `float-left` | `float-start` | float |
+| `float-right` | `float-end` | float |
+| `clear-left` | `clear-start` | clear |
+| `clear-right` | `clear-end` | clear |
+
+The `border-*` and `rounded-*` entries also catch the **bare** forms Tailwind allows (`border-l`, `rounded-tl`), which break RTL identically.
+
+**Deliberately NOT banned** — the governing rule is *ban a utility only if a logical replacement exists*; a rule that cannot name a replacement is a rule engineers disable:
+
+| Allowed | Why |
+|---|---|
+| `inset-x-*`, `inset-y-*` | Direction-neutral — they set both sides |
+| `rounded-t-*`, `rounded-b-*`, `border-t-*`, `border-b-*` | Block axis. Top/bottom are not start/end and do not mirror in RTL |
+| `origin-left`, `bg-left` | `transform-origin` / `background-position` have no Tailwind logical counterpart |
+| `text-left` in prose, `--kf-border-left-legacy` | Not class tokens. `left-*`/`right-*` are value-guarded so ordinary English ("the left-hand column", "right-click") never trips the rule |
 
 ### Consuming these configs
 

@@ -17,6 +17,7 @@ import { ESLint } from 'eslint';
 import tseslint from 'typescript-eslint';
 
 import { ignores, webRules } from '../index.mjs';
+import { DIRECTIONAL_UTILITIES } from '../web.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..', '..');
@@ -107,6 +108,80 @@ test('fixtures are excluded from normal lint runs', () => {
     ignores.ignores.includes('**/__fixtures__/**'),
     'base config must ignore **/__fixtures__/** so deliberate violations never break repo lint',
   );
+});
+
+// --- KF-S0-INFRA-003a ---
+
+test('003a AC1 — each newly banned family fails lint naming its own replacement', async () => {
+  const result = await lintFixture('physical-direction.fixture.ts');
+  const text = messagesOf(result);
+
+  // The four utilities named in the acceptance criterion, each with its replacement.
+  const required = [
+    ['border-l-*', 'border-s-*'],
+    ['rounded-tl-*', 'rounded-ss-*'],
+    ['text-left', 'text-start'],
+    ['float-right', 'float-end'],
+  ];
+
+  for (const [physical, logical] of required) {
+    assert.ok(text.includes(physical), `expected an error naming ${physical}`);
+    assert.ok(
+      text.includes(logical),
+      `error for ${physical} must name its replacement ${logical}, not a generic list`,
+    );
+  }
+});
+
+test('003a AC1 — every banned family is represented in the fixture', async () => {
+  const result = await lintFixture('physical-direction.fixture.ts');
+  const text = messagesOf(result);
+
+  const uncovered = DIRECTIONAL_UTILITIES.filter(({ physical }) => !text.includes(physical));
+  assert.deepEqual(
+    uncovered.map((u) => u.physical),
+    [],
+    'every entry in DIRECTIONAL_UTILITIES must have a failing fixture case',
+  );
+});
+
+test('003a — variant prefix, negative value, and template literal fire on new families', async () => {
+  const result = await lintFixture('physical-direction.fixture.ts');
+  const lines = result.messages.map((m) => m.line);
+  const source = fs
+    .readFileSync(path.join(fixturesDir, 'physical-direction.fixture.ts'), 'utf8')
+    .split('\n');
+
+  for (const needle of ['md:border-l-2', '-scroll-ml-2', 'rounded-br-lg']) {
+    const lineNo = source.findIndex((l) => l.includes(needle)) + 1;
+    assert.ok(lineNo > 0, `fixture must contain ${needle}`);
+    assert.ok(lines.includes(lineNo), `${needle} (line ${lineNo}) must be flagged`);
+  }
+});
+
+test('003a AC2 — logical replacements pass lint', async () => {
+  const result = await lintFixture('clean.fixture.ts');
+  const source = fs.readFileSync(path.join(fixturesDir, 'clean.fixture.ts'), 'utf8');
+
+  for (const logical of ['border-s-2', 'rounded-ss-lg', 'text-start', 'float-start']) {
+    assert.ok(source.includes(logical), `clean fixture must exercise ${logical}`);
+  }
+  assert.equal(result.errorCount, 0, `logical forms must not be flagged:\n${messagesOf(result)}`);
+});
+
+test('003a — utilities with no logical equivalent are NOT banned', async () => {
+  const result = await lintFixture('clean.fixture.ts');
+  const source = fs.readFileSync(path.join(fixturesDir, 'clean.fixture.ts'), 'utf8');
+
+  // Planner rule of thumb (R-6): ban only what we can name a replacement for.
+  for (const allowed of ['inset-x-4', 'origin-left', 'bg-left', 'rounded-t-lg', 'border-t-2']) {
+    assert.ok(source.includes(allowed), `clean fixture must pin ${allowed} as allowed`);
+  }
+  // Near misses that previously risked false positives.
+  for (const nearMiss of ['rounded-lg', '--kf-border-left-legacy', 'left-hand', 'right-click']) {
+    assert.ok(source.includes(nearMiss), `clean fixture must pin near-miss ${nearMiss}`);
+  }
+  assert.equal(result.errorCount, 0, `no over-reach allowed:\n${messagesOf(result)}`);
 });
 
 test('AC4 — no package defines a competing Prettier config', () => {
