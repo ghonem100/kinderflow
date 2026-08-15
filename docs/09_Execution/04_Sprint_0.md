@@ -212,7 +212,17 @@
 
 ---
 
-## KF-S0-INFRA-003a — Broaden the RTL physical-utility rule (follow-up)
+## KF-S0-INFRA-003a — Broaden the RTL physical-utility rule (follow-up) ✅ DONE
+
+> **Status:** DONE · 2026-08-10 · commit `4dec61d` (5 files, +264/−9) · preceded by `0827a74` and `d429505`
+> **Evidence (independently verified by the planner):** 24 directional families banned, each error naming its own logical replacement; assertions 7 → 12, original 7 unchanged and passing; `pnpm lint:rules` exit 0; tree clean. Corner mappings verified correct (`ss/se/es/ee` = block-start/end × inline-start/end). Pattern behavior re-derived empirically by the planner rather than read: `rounded-lg` and `rounded-full` pass while `rounded-l`, `rounded-l-xl`, `md:rounded-l-sm` fire; `left-0`, `left-1/2`, `left-[10px]`, `left-auto`, `-left-4` fire while `the left-hand column` and `right-click…` pass. `d429505` confirmed a **pure move** (22 added / 22 removed, identical multiset).
+> **Implementation decisions approved by the planner:** (a) **value guard** on `left-`/`right-` only — narrows the pattern to real Tailwind values, eliminating the prose-collision class that R-5 predicted would erode trust; coverage of real utilities unaffected. (b) **bare forms** (`border-l`, `rounded-tl`) included via the `sided` kind — a widening *within* already-named families, not a new family; `rounded-lg` pinned in the clean fixture proves no overshoot. Both endorsed: they serve the rule's intent better than its literal wording.
+> **Design quality note:** the `[physical, logical, kind]` table is the single source for the rule, the README, and assertion #8 (which fails the build if a banned family lacks a fixture) — the three cannot drift.
+> **Known narrow gap (accepted):** the value guard does not fire on custom-theme named values such as `left-header`. Real Tailwind value shapes (digit, `[`, `px`, `auto`, `full`, fractions) are all covered; a custom named inset would slip through. Acceptable — design tokens supply spacing, and the alternative is re-admitting prose false positives. Revisit only if the Tailwind theme grows named inset values.
+> **Raised — R-7 (repo-wide hazard):** the sequence `*/` inside a JSDoc block silently terminates the comment; the remainder parses as code and surfaces as an opaque module-level `SyntaxError` with no file or line. This project writes `foo-*` glob notation in comments constantly. **Convention adopted: write `foo-…` or `` `foo-*` `` in block comments, never bare `foo-*/`.** Recorded in the development guide (`KF-S0-DOC-001`).
+> **R-5 status:** partly measured — the prose-collision class is eliminated and pinned by regression fixtures. Still unmeasured against real component source; `KF-S0-FE-003` remains the measurement point.
+> **DoD:** 10, 12, 15, 16 applicable and satisfied; 17 not evaluable (no CI); rest not applicable with reasons.
+> **Unlocks:** `KF-S0-INFRA-004`.
 
 **Objective** — Close the gap between the implemented rule (the six utilities the spec enumerated) and Design System §2.6's actual intent ("no `left/right` in any component spec"), while it is still free to do so — no component source exists yet.
 
@@ -718,6 +728,8 @@
 
 **Dependencies** — `KF-S0-OPS-002`, `KF-S0-CI-003`.
 
+> **Note added 2026-08-10 (from KF-S0-INFRA-003a, R-7):** document the comment convention — never write bare `foo-*/` inside a JSDoc block; the `*/` terminates the comment and the module fails with an opaque `SyntaxError`. Use `foo-…` or backticked `` `foo-*` ``. This repo writes glob notation in comments constantly.
+>
 > **Note added 2026-08-10 (from KF-S0-INFRA-003, O-7/O-9):** record the confirmed house Prettier style (100 cols, single quotes, semicolons, trailing commas, LF) as settled — it is not specified by any earlier document and should not be re-litigated. Also record the toolchain reality: a cold `pnpm install` on a Windows volume exceeded 10 minutes (warm: ~5 s), so first-time setup expectations must be stated.
 >
 > **Priority note 2026-08-10:** DISC-002 escalated to **P0** — after `KF-S0-INFRA-002` the README references `backend/` and `frontend/`, which no longer exist. Pull this task forward ahead of its listed position. The development guide must also record the toolchain prerequisites found in O-6 (Node ≥22 selected explicitly; nvm has no default on the build host) and the pinned pnpm 9.15.9.
