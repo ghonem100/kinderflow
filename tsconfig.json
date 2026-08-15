@@ -1,0 +1,13 @@
+{
+  "//": "Solution file only — no sources of its own. The compiler options live in @kf/config-ts (configs/ts/tsconfig.base.json). `tsc -b` from the repo root builds every referenced project in dependency order. configs/* are not TypeScript projects (decision D-9) and are deliberately absent.",
+  "files": [],
+  "references": [
+    { "path": "./packages/tokens" },
+    { "path": "./packages/shared" },
+    { "path": "./packages/i18n" },
+    { "path": "./packages/contracts" },
+    { "path": "./packages/ui" },
+    { "path": "./apps/api" },
+    { "path": "./apps/web" }
+  ]
+}
