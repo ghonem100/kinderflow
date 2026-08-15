@@ -188,6 +188,28 @@
 > **DoD:** 10, 12, 16 applicable and satisfied; 17 not evaluable (no CI); 1–9, 11, 13–15 not applicable with reasons.
 > **Unlocks:** `KF-S0-INFRA-003a`, `KF-S0-INFRA-004`.
 
+**Objective** — One source for TypeScript, ESLint, and Prettier configuration, including the KinderFlow-specific lint rules.
+
+**Source of Truth** — Blueprint §12; Sprint 0 Guide §1.3, §8; Design System §02 (token rule), §2.6 (logical properties).
+
+**Dependencies** — `KF-S0-INFRA-002`.
+
+**Files / Areas** — `configs/` (`tsconfig.base.json`, ESLint flat config, Prettier config).
+
+**Implementation Requirements** — TS strict plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, ES2022, bundler resolution; ESLint base + per-package overlays; custom rules: (a) ban physical-direction Tailwind classes (`pl-`, `pr-`, `left-`, `right-`, `ml-`, `mr-`) in `apps/web` and `packages/ui`; (b) ban raw hex colors and raw px values in the same scopes; (c) ban `any`.
+
+**Security Requirements** — None.
+
+**Testing Requirements** — Fixture files that must fail each custom rule (kept under `configs/__fixtures__` and asserted by a lint-rules test).
+
+**Acceptance Criteria**
+1. A file using `pl-4` fails lint with a message naming the logical-property replacement.
+2. A file using `#0D7377` literal in `apps/web` fails lint pointing to `@kf/tokens`.
+3. `any` usage fails lint.
+4. No package defines its own competing Prettier config.
+
+**Risk** Low · **Complexity** M
+
 ---
 
 ## KF-S0-INFRA-003a — Broaden the RTL physical-utility rule (follow-up)
@@ -213,28 +235,6 @@
 **Definition of Done (additions)** — `configs/README.md` documents the full banned set so component authors can read one list.
 
 **Risk** Low · **Complexity** S
-
-**Objective** — One source for TypeScript, ESLint, and Prettier configuration, including the KinderFlow-specific lint rules.
-
-**Source of Truth** — Blueprint §12; Sprint 0 Guide §1.3, §8; Design System §02 (token rule), §2.6 (logical properties).
-
-**Dependencies** — `KF-S0-INFRA-002`.
-
-**Files / Areas** — `configs/` (`tsconfig.base.json`, ESLint flat config, Prettier config).
-
-**Implementation Requirements** — TS strict plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, ES2022, bundler resolution; ESLint base + per-package overlays; custom rules: (a) ban physical-direction Tailwind classes (`pl-`, `pr-`, `left-`, `right-`, `ml-`, `mr-`) in `apps/web` and `packages/ui`; (b) ban raw hex colors and raw px values in the same scopes; (c) ban `any`.
-
-**Security Requirements** — None.
-
-**Testing Requirements** — Fixture files that must fail each custom rule (kept under `configs/__fixtures__` and asserted by a lint-rules test).
-
-**Acceptance Criteria**
-1. A file using `pl-4` fails lint with a message naming the logical-property replacement.
-2. A file using `#0D7377` literal in `apps/web` fails lint pointing to `@kf/tokens`.
-3. `any` usage fails lint.
-4. No package defines its own competing Prettier config.
-
-**Risk** Low · **Complexity** M
 
 ---
 
