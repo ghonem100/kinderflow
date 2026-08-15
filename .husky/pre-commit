@@ -1,0 +1,12 @@
+# KF-S0-INFRA-005 — Sprint 0 Guide 8: lint-staged, then typecheck.
+#
+# Everything runs through pnpm on purpose (KF-S0-INFRA-004, risk R-8).
+# Turbo spawns `pnpm run <task>` per package; launched outside pnpm those
+# children re-resolve the pinned pnpm@9.15.9 from the registry, which turned a
+# 3s run into a 1m11s failure. Never call `npx turbo` or a bare turbo binary here.
+pnpm exec lint-staged
+
+# Typecheck the whole workspace (KF-S0-INFRA-004 decision D-12). Turbo's cache
+# makes this near-instant when nothing relevant changed. Per-package filtering
+# by staged path is a deliberate deferred optimization.
+pnpm typecheck

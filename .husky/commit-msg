@@ -1,0 +1,3 @@
+# KF-S0-INFRA-005 — Conventional Commits enforcement (Blueprint 12).
+# Invoked through pnpm per KF-S0-INFRA-004 risk R-8.
+pnpm exec commitlint --edit "$1"

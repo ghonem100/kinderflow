@@ -1,0 +1,32 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Africa/Cairo",
+  "schedule": ["before 6am on monday"],
+  "prConcurrentLimit": 3,
+  "rangeStrategy": "pin",
+  "packageRules": [
+    {
+      "description": "Weekly grouped non-major updates (Sprint 0 Guide 8).",
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "weekly non-major updates",
+      "schedule": ["before 6am on monday"]
+    },
+    {
+      "description": "Major updates stay separate so they can be reviewed on their own.",
+      "matchUpdateTypes": ["major"],
+      "groupName": null,
+      "schedule": ["before 6am on monday"]
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "description": "Security patches bypass the weekly window entirely.",
+    "labels": ["security"],
+    "schedule": ["at any time"],
+    "prCreation": "immediate"
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  }
+}
