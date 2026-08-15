@@ -55,7 +55,8 @@ Root `tsconfig.base.json` (strict, `noUncheckedIndexedAccess`, `exactOptionalPro
 |------|-----------|---------------|
 | `build` | `^build` | dist/.next; tokens build runs first via dependency |
 | `typecheck` | `^build` | tsc -b, cached |
-| `lint` / `test` | — | cached by inputs |
+| `lint` | — | cached by inputs |
+| `test` | `^build` | cached by inputs. **Amended 2026-08-10 (O-11):** under composite projects a test importing a workspace dependency needs that package's emitted declarations, so `test` must wait on `^build` |
 | `test:isolation` | `^build` | never cached (DB-dependent) |
 | `dev` | — | persistent, parallel api+web+workers |
 

@@ -248,7 +248,17 @@
 
 ---
 
-## KF-S0-INFRA-004 — Turborepo pipeline and TypeScript project references
+## KF-S0-INFRA-004 — Turborepo pipeline and TypeScript project references ✅ DONE
+
+> **Status:** DONE · 2026-08-10 · commit `b69a92e` (25 files, +293/−9) · preceded by `c408697`
+> **Evidence (independently verified by the planner):** 10 commits, tree clean; `turbo.json` carries all six tasks with `test:isolation` `cache:false` and `dev` persistent; **exactly two** workspace edges (`@kf/ui` → `@kf/tokens`, `@kf/web` → `@kf/tokens`) — no others; `@kf/shared` has zero dependencies (Blueprint §1 rule holds); no `dist/`, `*.tsbuildinfo`, or `.turbo/` tracked; all 7 placeholders name their replacing task; the only committed `test:isolation` script is the root delegator — the AC4 probe script was genuinely removed.
+> **AC verification quality:** AC1–AC3 verified against real artifacts. AC3 done properly — a content edit rather than a `touch` (turbo hashes content, so a touch would have proven nothing), with the `--summarize` JSON showing dependents MISS and unrelated packages HIT, then reverted. AC4 verified by mechanism with the probe hash **identical across three runs** — proving the task would have been a cache hit if cacheable, so "cache bypass" is real re-execution rather than replay. That is the strongest available proof absent a real suite, and it was labelled as partial rather than claimed as complete.
+> **Decisions resolved:** O-11 → **keep the implementation**; Sprint 0 Guide §1.4 amended (`test` now shows `^build`). DISC-011 (found by the planner during verification) → **zod schemas live in `@kf/contracts`**; Blueprint §2 amended.
+> **Carried forward — R-8 (CI-blocking if missed):** `turbo` must be invoked **through pnpm** (`pnpm build`), never a bare `npx turbo`. Turbo spawns `pnpm run <task>` per package; launched outside pnpm, every cache-miss task re-resolves pinned `pnpm@9.15.9` from the registry — one network round trip each, and a single failure kills the build (observed: 1m11s failure vs 3.0s success). **Cache-hit tasks replay logs without spawning pnpm, so a warm CI run hides this until the first cold build.** Routed to `KF-S0-CI-001`.
+> **Also carried:** R-9 — `build` and `typecheck` are both `tsc -b` (composite projects must emit for downstream typechecking); `typecheck` has `outputs: []` so they cache independently. CI need not run both. O-10 — `test`/`lint` task slots have no implementers; a green `pnpm test` is currently meaningless and CI must not treat it as a signal.
+> **Noted:** `@kf/shared` has no Sprint 0–5 owner; its first real content is `KF-S6-BILL-001` (Money VO). It will hold a placeholder for five sprints — correct, not an oversight, and now recorded so nobody "tidies it up". Per-package tsconfigs use a relative `extends` rather than the package name, avoiding seven spurious workspace edges (consistent with D-7/D-9).
+> **DoD:** 10, 12, 16 applicable and satisfied; 17 not evaluable (no CI); rest not applicable with reasons.
+> **Unlocks:** `KF-S0-INFRA-005`, and the path to `KF-S0-OPS-002` → **`KF-S0-RLS-001` (TR-10)**.
 
 **Objective** — Fast, cached, dependency-correct builds and typechecks across the workspace.
 
@@ -301,6 +311,10 @@
 **Implementation Requirements** — Jobs: setup (pnpm cache + turbo cache), lint, typecheck, test (unit + integration with Testcontainers services), coverage threshold (domain/application ≥80%), build (+ Docker images on `main`).
 
 > **Note added 2026-08-10 (from KF-S0-INFRA-002, R-2/O-6):** the runner **must** pin pnpm **9.15.9** (via corepack + the root `packageManager` field) — a different major will churn the lockfile. The runner must also select Node ≥22 explicitly; the build host uses nvm with no default active version.
+>
+> **⚠️ Note added 2026-08-10 (from KF-S0-INFRA-004, R-8) — CI-blocking:** invoke turbo **only through pnpm** (`pnpm build`, `pnpm typecheck`), never `npx turbo` or a bare turbo binary. Turbo spawns `pnpm run <task>` per package; outside pnpm, each cache-miss task re-resolves pinned `pnpm@9.15.9` from the registry and one network failure kills the build. Pre-activate pnpm via corepack so no task reaches the network. **A warm cached run will not reveal this** — cache hits replay logs without spawning pnpm — so validate on a cold cache.
+>
+> **Note added 2026-08-10 (from KF-S0-INFRA-004, R-9/O-10):** `build` and `typecheck` are both `tsc -b`; CI need not run both. `test` and `lint` currently have no implementers — do not treat a green `pnpm test` as a signal until real tests land.
 >
 > **Note added 2026-08-10 (from KF-S0-INFRA-003, R-4):** adopt `pnpm lint:rules` as a blocking gate — it is already shaped as a single exit-code-bearing command. Use the glob form `node --test "configs/eslint/test/**/*.test.mjs"`; the directory form (`node --test <dir>`) fails on Node 22.
 

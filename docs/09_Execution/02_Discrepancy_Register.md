@@ -132,6 +132,18 @@ Severity scale: **P0** blocks Sprint 0 · **P1** must resolve within Sprint 0–
 | ADR required | No |
 | Priority | **P3** |
 
+## DISC-011 — Shared zod schema location: `@kf/shared` vs `@kf/contracts`
+
+| Field | Content |
+|---|---|
+| Document | Blueprint §2 (Forms row) vs. `04_Sprint_0.md` → `KF-S0-CONTRACT-001` (Zod schemas row) |
+| Current implementation | Neither package holds schemas yet — both are placeholders (`KF-S0-INFRA-004`) |
+| Approved design | **Contradictory.** Blueprint §2: "zod schemas imported from `packages/shared`". CONTRACT-001: zod schemas are a `@kf/contracts` artifact under `schemas/`, consumed by web forms and mirrored by API DTO validators |
+| Impact | Would have surfaced as rework in `KF-S0-CONTRACT-001` and every form from Sprint 1 onward. Schemas split across two packages, or duplicated, is the failure mode |
+| Resolution (founder, 2026-08-10) | **`@kf/contracts`.** DTO schemas are contract artifacts and must version with the OpenAPI spec they mirror — the OpenAPI diff gate cannot catch drift in a package it does not govern. `@kf/shared` keeps framework-free pure utils only (Money math, domain primitives). Blueprint §2 amended |
+| ADR required | No — package-boundary clarification within the approved architecture |
+| Priority | **Resolved** (was P1 — would have blocked CONTRACT-001) |
+
 ---
 
 ## Summary
