@@ -6,6 +6,7 @@
   "engines": {
     "node": ">=22"
   },
+  "prettier": "./configs/prettier/index.json",
   "scripts": {
     "prepare": "husky || true",
     "build": "turbo run build",

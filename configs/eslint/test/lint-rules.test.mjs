@@ -186,7 +186,15 @@ test('003a — utilities with no logical equivalent are NOT banned', async () =>
 
 test('AC4 — no package defines a competing Prettier config', () => {
   const SHARED = path.join('configs', 'prettier');
-  const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next', '.turbo', 'coverage']);
+  const SKIP_DIRS = new Set([
+    'node_modules',
+    '.git',
+    'dist',
+    'build',
+    '.next',
+    '.turbo',
+    'coverage',
+  ]);
   const COMPETING = /^(\.prettierrc(\..*)?|prettier\.config\.(js|cjs|mjs|ts))$/;
   const offenders = [];
 
@@ -198,11 +206,18 @@ test('AC4 — no package defines a competing Prettier config', () => {
         if (!SKIP_DIRS.has(entry.name)) walk(full);
         continue;
       }
+      // A standalone config file is a competing config wherever it appears.
       if (COMPETING.test(entry.name)) {
         offenders.push(rel);
       } else if (entry.name === 'package.json' && !rel.startsWith(SHARED)) {
         const pkg = JSON.parse(fs.readFileSync(full, 'utf8'));
-        if (Object.hasOwn(pkg, 'prettier')) offenders.push(`${rel} (prettier key)`);
+        // The single ROOT `prettier` key is how editors and the CLI discover the
+        // shared config (KF-S0-INFRA-005a). It points at @kf/config-prettier and
+        // is therefore not a competing config — that was always the intent of
+        // this assertion. A key in any OTHER package still is one.
+        if (Object.hasOwn(pkg, 'prettier') && rel !== 'package.json') {
+          offenders.push(`${rel} (prettier key)`);
+        }
       }
     }
   };
@@ -211,6 +226,32 @@ test('AC4 — no package defines a competing Prettier config', () => {
   assert.deepEqual(
     offenders,
     [],
-    `Prettier config lives only in @kf/config-prettier (Blueprint §12: zero local overrides). Found: ${offenders.join(', ')}`,
+    `Prettier config lives only in @kf/config-prettier, discovered via the single root "prettier" key (Blueprint §12: zero local overrides). Found: ${offenders.join(', ')}`,
+  );
+});
+
+test('AC4 — the root Prettier key actually points at the shared config', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+
+  assert.ok(
+    Object.hasOwn(pkg, 'prettier'),
+    'root package.json must carry a "prettier" key so editors discover the shared config',
+  );
+  assert.match(
+    pkg.prettier,
+    /configs[/\\]prettier|@kf[/\\]config-prettier/,
+    `root "prettier" key must reference the shared config, got: ${pkg.prettier}`,
+  );
+
+  // Resolve it and confirm it is the real shared config, not a lookalike.
+  const shared = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, 'configs', 'prettier', 'index.json'), 'utf8'),
+  );
+  assert.equal(shared.singleQuote, true, 'shared config must set singleQuote');
+  assert.equal(shared.printWidth, 100, 'shared config must set printWidth 100');
+  assert.equal(
+    shared.endOfLine,
+    'lf',
+    'shared config must set endOfLine lf to match .gitattributes',
   );
 });
