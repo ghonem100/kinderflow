@@ -280,7 +280,49 @@
 
 ---
 
-## KF-S0-INFRA-005 — Commit hygiene automation
+## KF-S0-INFRA-005 — Commit hygiene automation ✅ DONE
+
+> **Status:** DONE · 2026-08-10 · commit `04a3297` (10 files, +1960/−227) · preceded by `2de27cb`
+> **Evidence (independently verified by the planner):** 12 commits, tree clean apart from the untracked `designs/`; both hooks invoke tooling **only through pnpm** (`pnpm exec lint-staged`, `pnpm typecheck`, `pnpm exec commitlint`) with inline R-8 rationale so a future editor cannot "simplify" it back; `.husky/_/` correctly excluded by husky's own generated ignore; commitlint config is a deduped union with `scope-empty` disabled for the scopeless root commit. **Strongest proof: this task's own commit passed through both hooks live** — lint-staged reformatted `commitlint.config.mjs` in flight and re-staged it. The automation worked on itself.
+> **Planner harness note:** my own piped `commitlint` spot-check returned REJECTED for every message including `chore(repo)`, which demonstrably passed in commit `04a3297`. My harness was broken (stdin without `--from`/`--edit`), not the config. Recorded so the false negative is not mistaken for a finding.
+> **Decisions resolved:** D-11 → **consolidate** (see `KF-S0-INFRA-005a`). R-11 → **relax the AC4 assertion** (see `KF-S0-INFRA-005a`).
+> **Planner error acknowledged:** D-11 as I wrote it ("epic codes lowercased" → `bill`) contradicted the spec's own acceptance criterion (`feat(billing)`). The implementer caught it, checked the sources rather than picking a side, and widened to a union — the correct move under the constraint given. The union is now being narrowed deliberately, which is a different decision from the one they were forced to make mid-task.
+> **Accepted:** R-10 → `eslint.config.mjs` was unowned; ESLint 9 requires a root flat config or the pre-commit hook fails on every commit. Created from the snippet `configs/README.md` documents, with a relative import so the D-7 edge count is unchanged. **Ownership assigned retroactively to this task** — later tasks adopt it, never duplicate it. O-12 → hooks are bypassable with `--no-verify` by design of git; they are fast feedback, not an enforcement boundary. Blueprint §12's "commitlint in CI" is the real gate.
+> **Carried to `KF-S0-CI-001` (now four notes + one):** R-4 glob form · R-8 invoke turbo through pnpm · R-2 pin pnpm 9.15.9 · R-9/O-10 build≡typecheck and empty test/lint slots · **O-12 re-run lint, typecheck, and commitlint server-side over the PR range.**
+> **D-13/D-14 as specified:** Changesets = changelog discipline only, `apps/*` ignored, nothing published (`changeset status` verified). Renovate committed but **inert** — no remote, no GitHub App; schema validity verified against the published schema, which is the only property testable today.
+> **DoD:** 10, 12, 16 applicable and satisfied; 17 not evaluable (no CI); rest not applicable with reasons.
+> **Unlocks:** `KF-S0-INFRA-005a`, then `KF-S0-CI-001` / `KF-S0-OPS-002`.
+
+---
+
+## KF-S0-INFRA-005a — Consolidate commit scopes and relax the Prettier assertion (follow-up)
+
+**Objective** — Replace the four-way scope union with a single code-location taxonomy, and let editors discover the shared Prettier config.
+
+**Source of Truth** — Blueprint §12 ("scopes = module/package names (enforced list)"); Sprint 0 Guide §8; SAD §3.1 (module names); Blueprint §1 (package names); planner decisions D-11-revised and R-11 (2026-08-10).
+
+**Dependencies** — `KF-S0-INFRA-005`.
+
+**Files / Areas** — `commitlint.config.mjs`, root `package.json`, `configs/eslint/test/lint-rules.test.mjs`, `configs/README.md`.
+
+**Implementation Requirements**
+1. **Scope enum** becomes the union of exactly three families, deduped and sorted — **drop the Master Backlog epic codes** (they are a planning taxonomy; commit scopes describe where code changed, and `bill` vs `billing` makes `git log --grep` unreliable):
+   - **Module names** (SAD §3.1): `iam`, `tenancy`, `children`, `attendance`, `activities`, `billing`, `communication`, `staff`, `ai`, `media`, `platform`, `audit`, `notifications`, `analytics`
+   - **Package/app names** (Blueprint §1): `api`, `web`, `contracts`, `tokens`, `ui`, `i18n`, `shared`, `configs`, `tooling`
+   - **Structural**: `repo`, `execution`, `deps`, `docs`, `ci`
+2. `scope-empty` stays disabled (the scopeless root commit is legitimate).
+3. **Prettier**: add a root `package.json` `"prettier"` key pointing at the shared config, and simplify the lint-staged invocation to plain `prettier --write` (discovery now works).
+4. **Relax the AC4 assertion** in `lint-rules.test.mjs`: fail on a `prettier` key in **any package other than the root**, and on any standalone `.prettierrc*`/`prettier.config.*` file anywhere. A root key that *references* the shared config is not a competing config — that was always the assertion's intent.
+
+**Security Requirements** — None.
+
+**Testing Requirements** — Re-run commitlint across the full history (all 13+ commits must pass); assert `feat(billing)` accepted and `feat(bill)` now **rejected**; assert the relaxed AC4 still fails on a package-level `prettier` key and on a stray `.prettierrc`; `pnpm lint:rules` green.
+
+**Acceptance Criteria** — (1) Full history passes commitlint. (2) `feat(billing)` accepted; `feat(bill)`, `feat(att)`, `feat(nonsense)` all rejected. (3) `prettier --write` with no `--config` applies the shared style (prove by reformatting a deliberately mis-formatted file). (4) The AC4 assertion fails when a `prettier` key is added to `packages/ui/package.json`, and passes with the root key present. (5) `pnpm lint:rules` green with the assertion count unchanged or higher.
+
+**Definition of Done (additions)** — `configs/README.md` documents the final scope list and the Prettier discovery mechanism.
+
+**Risk** Low · **Complexity** S
 
 **Objective** — Make the approved commit/branch standards mechanical.
 

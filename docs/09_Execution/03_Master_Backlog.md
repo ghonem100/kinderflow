@@ -96,6 +96,7 @@ Complexity: **S** ≤½ day · **M** ~1 day · **L** 2–3 days · **XL** split 
 | KF-S0-INFRA-003a | Broaden RTL physical-utility lint rule (follow-up, R-6) | S | Low |
 | KF-S0-INFRA-004 | Turborepo pipeline + TypeScript project references | M | Medium |
 | KF-S0-INFRA-005 | Husky, lint-staged, commitlint, Changesets, Renovate | S | Low |
+| KF-S0-INFRA-005a | Consolidate commit scopes; relax Prettier assertion (follow-up, D-11/R-11) | S | Low |
 | KF-S0-OPS-001 | GitHub remote, branch protection, CODEOWNERS | S | Low |
 | KF-S0-OPS-002 | Docker Compose dev environment + `dev-setup.sh` | L | Medium |
 | KF-S0-OPS-003 | Dockerfiles for api and web | M | Medium |
