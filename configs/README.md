@@ -24,6 +24,25 @@ It is written as a **relative path**, not as `@kf/config-prettier`. Both forms r
 
 Adding a `prettier` key to any **other** package, or any standalone `.prettierrc*` / `prettier.config.*` file anywhere in the tree, is a competing config and fails `pnpm lint:rules`. The single root key is the only exemption.
 
+### What gets auto-formatted, and what does not
+
+The pre-commit hook formats staged files. One path is deliberately exempt:
+
+| Path                                                        | Auto-formatted on commit?                 |
+| ----------------------------------------------------------- | ----------------------------------------- |
+| `docs/**`                                                   | **No** — approved Phase 0–9 documentation |
+| `README.md`, `configs/**`, `.changeset/**`, package READMEs | Yes                                       |
+| All source, JSON, and YAML outside `docs/`                  | Yes                                       |
+
+`docs/` holds the project's source of truth. It is hand-authored and controlled: table alignment, emphasis markers, and line wrapping there carry intent a formatter does not understand. Letting the hook rewrite it produced noisy diffs against approved documents and taught everyone to reach for `git commit --no-verify` — which also skips the commit-message check, so one annoyance disabled an unrelated gate.
+
+Two things this is deliberately **not**:
+
+- **Not a `.prettierignore` entry.** Only the _automatic_ path is excluded. A developer who owns a document can still run `prettier --write docs/whatever.md` by hand.
+- **Not a Prettier-specific rule.** The exclusion lives in `.lintstagedrc.mjs` as a property of the path, applied before any task sees a file. A markdown linter or link checker added to that config later inherits the exemption without further work.
+
+Everything else stays formatted — this narrows the blast radius, it does not abandon markdown formatting.
+
 ### Commit scopes
 
 `commitlint.config.mjs` enforces the scope list. A scope answers one question — **where in the codebase did this change land?** — so the enum is a single code-location taxonomy drawn from three families (28 scopes, deduped and sorted):
