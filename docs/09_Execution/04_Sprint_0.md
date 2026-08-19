@@ -295,7 +295,16 @@
 
 ---
 
-## KF-S0-INFRA-005a — Consolidate commit scopes and relax the Prettier assertion (follow-up)
+## KF-S0-INFRA-005a — Consolidate commit scopes and relax the Prettier assertion (follow-up) ✅ DONE
+
+> **Status:** DONE · 2026-08-10 · commit `51a272e` (5 files, +177/−105) · preceded by `2580e0f`
+> **Evidence (independently verified by the planner):** 14 commits, tree clean apart from untracked `designs/`; scope enum = **28 unique, zero duplicates** (modules 14 / packages 9 / structural 5); `EPIC_SCOPES` deleted outright, not left dead; `notifications` correctly excluded in favour of `communication` (D-15); `shared` and `shared-kernel` both present and distinct (D-16); root `prettier` key = `./configs/prettier/index.json`; full history passes commitlint.
+> **Planner harness error, disclosed:** my first scope count reported 9 packages as 8 — my regex `[a-z-]` cannot match `i18n`. The config was correct; my check was wrong. Second false signal from my tooling in two tasks, against zero from the implementer's.
+> **Verification quality:** AC4 proven with **three** negative shapes (package-level key, stray `.prettierrc`, stray `prettier.config.mjs`), not one — and a **new assertion #13** added so the root-key exemption cannot rot into a hole: it verifies the key exists, points at the shared config, and that the resolved config really carries `singleQuote`/`printWidth: 100`/`endOfLine: lf`. AC3's first probe was invalidated and redone because the probe file sat outside the repo, so Prettier never discovered the root config and both key forms "passed" for the wrong reason — caught by the implementer, not by me.
+> **Prettier key form:** path form chosen over `@kf/config-prettier`. Both resolve today, but the package-name form works **by accident** — the symlink exists while nothing declares the dependency, so a clean install or stricter pnpm settings could break it silently, with Prettier falling back to defaults and reformatting the repo on the next commit. Consistent with the relative-path pattern already chosen in INFRA-004 and INFRA-005.
+> **DoD:** 10, 12, 16 applicable and satisfied; 17 not evaluable (no CI); rest not applicable with reasons.
+> **Raised — R-12 (blocks clean docs commits), R-13, O-13:** see `KF-S0-INFRA-005b`.
+> **Unlocks:** `KF-S0-INFRA-005b`, then `KF-S0-CI-001` / `KF-S0-OPS-002`.
 
 **Objective** — Replace the four-way scope union with a single code-location taxonomy, and let editors discover the shared Prettier config.
 
@@ -340,6 +349,39 @@
 
 ---
 
+## KF-S0-INFRA-005b — Exclude approved documentation from auto-formatting (follow-up)
+
+**Objective** — Stop the pre-commit hook rewriting approved Phase 0–9 documentation, and remove the `--no-verify` habit it forces.
+
+**Source of Truth** — Blueprint §12; Sprint 0 Guide §8; planner decision on R-12 (2026-08-10, founder option أ); risks R-12, R-13, O-13 from `KF-S0-INFRA-005a`.
+
+**Dependencies** — `KF-S0-INFRA-005a`.
+
+**Files / Areas** — `.lintstagedrc.json`, `configs/README.md`, and the development-guide note routed to `KF-S0-DOC-001`.
+
+**Implementation Requirements**
+1. Exclude `docs/**` from every lint-staged task. Approved documentation is a controlled, hand-authored artifact; a formatter must not rewrite table alignment, emphasis markers, or line wrapping in the project's source of truth.
+2. Repo-owned markdown outside `docs/` (`README.md`, `configs/**`, `.github/**`, package READMEs) **stays** auto-formatted — this task narrows the scope, it does not abandon markdown formatting.
+3. Prefer lint-staged's negated-glob or function form; whichever is chosen must be proven by the verification below rather than assumed to work (lint-staged glob semantics differ from `.gitignore`).
+4. Record in `configs/README.md` what is and is not auto-formatted, and why.
+
+**Security Requirements** — None.
+
+**Testing Requirements** — Empirical, not by inspection: stage a deliberately mis-formatted file in `docs/` and confirm it is committed **unchanged**; stage a deliberately mis-formatted `configs/**` markdown file and confirm it **is** reformatted; both in the same commit to prove the split works simultaneously.
+
+**Acceptance Criteria**
+1. A commit touching only `docs/**` completes **without** `--no-verify` and leaves every staged doc byte-identical.
+2. A commit touching `configs/**` markdown still reformats it to house style.
+3. A single commit touching both behaves correctly for each path in the same run.
+4. `pnpm lint:rules` green, assertion count unchanged.
+5. Measured pre-commit duration reported for: docs-only commit, code commit, mixed commit — establishing whether R-13's 4m31s is reproducible and where the cost sits.
+
+**Definition of Done (additions)** — `configs/README.md` documents the formatting boundary. The R-13 measurements and O-13's dangling-stash note are handed to `KF-S0-DOC-001` for the development guide.
+
+**Risk** Low · **Complexity** S
+
+---
+
 ## KF-S0-CI-001 — Core CI workflow
 
 **Objective** — PR pipeline running the non-domain-specific gates.
@@ -357,6 +399,8 @@
 > **⚠️ Note added 2026-08-10 (from KF-S0-INFRA-004, R-8) — CI-blocking:** invoke turbo **only through pnpm** (`pnpm build`, `pnpm typecheck`), never `npx turbo` or a bare turbo binary. Turbo spawns `pnpm run <task>` per package; outside pnpm, each cache-miss task re-resolves pinned `pnpm@9.15.9` from the registry and one network failure kills the build. Pre-activate pnpm via corepack so no task reaches the network. **A warm cached run will not reveal this** — cache hits replay logs without spawning pnpm — so validate on a cold cache.
 >
 > **Note added 2026-08-10 (from KF-S0-INFRA-004, R-9/O-10):** `build` and `typecheck` are both `tsc -b`; CI need not run both. `test` and `lint` currently have no implementers — do not treat a green `pnpm test` as a signal until real tests land.
+>
+> **Note added 2026-08-10 (from KF-S0-INFRA-005/005a, O-12/R-13):** client hooks are bypassable with `--no-verify` by design of git — they are fast feedback, **not** a gate. CI must independently re-run lint, typecheck, and **commitlint over the PR commit range**. Also measure hook duration on the runner: a local pre-commit of 4m31s was observed on a Windows volume (typecheck was only 360 ms — the cost is eslint/prettier plus lint-staged's stash cycle).
 >
 > **Note added 2026-08-10 (from KF-S0-INFRA-003, R-4):** adopt `pnpm lint:rules` as a blocking gate — it is already shaped as a single exit-code-bearing command. Use the glob form `node --test "configs/eslint/test/**/*.test.mjs"`; the directory form (`node --test <dir>`) fails on Node 22.
 
