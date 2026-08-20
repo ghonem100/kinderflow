@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "KinderFlow (dev)",
+      "Group": "KinderFlow",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "kf_dev",
+      "Username": "postgres",
+      "SSLMode": "prefer",
+      "Comment": "Dev stack from infrastructure/compose/dev.yml. Password is KF_POSTGRES_PASSWORD in .env — dev-only fake."
+    }
+  }
+}
