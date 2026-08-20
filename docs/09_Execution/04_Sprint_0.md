@@ -349,7 +349,19 @@
 
 ---
 
-## KF-S0-INFRA-005b — Exclude approved documentation from auto-formatting (follow-up)
+## KF-S0-INFRA-005b — Exclude approved documentation from auto-formatting (follow-up) ✅ DONE
+
+> **Status:** DONE · 2026-08-10 · commit `72a84db` (3 files, +84/−4) · preceded by `9e7ecf6`
+> **Evidence (independently verified by the planner):** 16 commits, tree clean apart from untracked `designs/`; exactly one lint-staged config (`.lintstagedrc.mjs`; the `.json` was deleted, so no discovery ambiguity); **no `.prettierignore` exists** — requirement 3 honoured, a developer can still format a doc by hand; task commit touched **zero** files under `docs/`; no probe file reached permanent history.
+> **Mechanism — function form, chosen on evidence:** both negated-glob candidates were tested against the matcher lint-staged 17 actually uses (**picomatch**, not micromatch) and both failed: `!(docs)/**/*.md` silently drops root `README.md` (needs a directory segment), and `!docs/**/*.md` negates the whole pattern and starts matching `package.json`. Rejected reasons are documented inline so nobody re-tries them.
+> **Requirement 2 satisfied structurally:** `PROTECTED_PATHS` filters once into `eligible`, and every task selects from it — the exemption is a property of the **path**, not of Prettier. A markdown linter added later inherits it with no further change. Root resolved via `fileURLToPath(import.meta.url)`, not `process.cwd()`, so filtering holds wherever lint-staged is invoked.
+> **AC verification quality:** proven by **sha256 on committed bytes**, not by eye — docs probe identical (trailing spaces survived, table left ragged, `*emphasis*` unconverted), configs probe differed (aligned, collapsed, `_emphasis_`). AC3 exercised both in a single real commit, then unwound.
+> **R-13 did NOT reproduce — kept open, correctly.** Worst shape now 16.6s vs the 4m31s outlier. Key insight: a docs-only commit costs 10.8s doing **zero** work, so the cost is fixed startup overhead (husky dispatch, two pnpm launches, lint-staged's stash cycle, turbo startup), not formatting — optimising formatters would buy almost nothing. The single outlier was **not explained and not invented away**; it stays open as "one unreproduced outlier" for `KF-S0-CI-001` to measure on the runner and a second machine.
+> **O-9 retracted:** Windows Defender real-time protection is **off** on this machine, so the antivirus explanation for slow I/O is unsupported. The slowness is real; the attributed cause is not. `KF-S0-DOC-001` records the measured numbers (10.8 / 12.7 / 16.6s warm, 3m27s cold install) **without** the causal claim.
+> **New:** O-14 — a docs-only commit still runs the full stash cycle and whole-workspace typecheck for zero staged code. Correct but wasteful; narrowing it belongs to D-12's owner, not here. Routed to `KF-S0-CI-001`. O-13 — dangling lint-staged stashes now three and growing; harmless, gc-collectable, noted for the development guide.
+> **`--no-verify` habit ended:** Step 0 was the last bypass (unavoidable — the old config would have rewritten the very docs it was committing). This task's own commit and all five probe commits passed the hooks cleanly.
+> **DoD:** 10, 12, 16 applicable and satisfied; 17 not evaluable (no CI); rest not applicable with reasons.
+> **Unlocks:** `KF-S0-CI-001`, `KF-S0-OPS-002`.
 
 **Objective** — Stop the pre-commit hook rewriting approved Phase 0–9 documentation, and remove the `--no-verify` habit it forces.
 
@@ -399,6 +411,8 @@
 > **⚠️ Note added 2026-08-10 (from KF-S0-INFRA-004, R-8) — CI-blocking:** invoke turbo **only through pnpm** (`pnpm build`, `pnpm typecheck`), never `npx turbo` or a bare turbo binary. Turbo spawns `pnpm run <task>` per package; outside pnpm, each cache-miss task re-resolves pinned `pnpm@9.15.9` from the registry and one network failure kills the build. Pre-activate pnpm via corepack so no task reaches the network. **A warm cached run will not reveal this** — cache hits replay logs without spawning pnpm — so validate on a cold cache.
 >
 > **Note added 2026-08-10 (from KF-S0-INFRA-004, R-9/O-10):** `build` and `typecheck` are both `tsc -b`; CI need not run both. `test` and `lint` currently have no implementers — do not treat a green `pnpm test` as a signal until real tests land.
+>
+> **Note added 2026-08-10 (from KF-S0-INFRA-005b, R-13/O-14):** R-13's 4m31s **did not reproduce** — warm measurements are 10.8s (docs-only) / 12.7s (code) / 16.6s (mixed) on the dev machine. The cost is fixed startup overhead, not formatting: a docs-only commit runs zero tasks and still takes 10.8s. **Measure on the runner and one other developer machine before acting**; the outlier stays open, unexplained. O-14: consider skipping `pnpm typecheck` when no code file is staged — that narrows D-12's whole-workspace choice, so it is D-12's owner's call.
 >
 > **Note added 2026-08-10 (from KF-S0-INFRA-005/005a, O-12/R-13):** client hooks are bypassable with `--no-verify` by design of git — they are fast feedback, **not** a gate. CI must independently re-run lint, typecheck, and **commitlint over the PR commit range**. Also measure hook duration on the runner: a local pre-commit of 4m31s was observed on a Windows volume (typecheck was only 360 ms — the cost is eslint/prettier plus lint-staged's stash cycle).
 >
