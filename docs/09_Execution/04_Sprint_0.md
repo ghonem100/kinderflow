@@ -28,6 +28,11 @@
 4. Implement the identical wrapper for the BullMQ worker context (tenant carried on the job payload).
 5. Probe suite — each must be demonstrated, not argued: missing-context throw; pool connection reuse (assert no leaked `app.tenant_id` across checkouts); 100 concurrent interleaved mixed-tenant requests → zero cross-tenant rows; nested transaction behavior; long-running/streaming query behavior.
 6. Benchmarks: roster read and event insert, wrapped vs unwrapped baseline, at 200 rps; record p50/p95/p99 and pool hold time.
+7. **⚠️ Added 2026-08-10 from `KF-S0-OPS-002` finding T-1 — resolve this or Sprint 1 seeds break.** `FORCE ROW LEVEL SECURITY` removes the **table owner's** implicit bypass. An `INSERT` as `kf_migrator` (the owner) was observed failing with `new row violates row-level security policy`. This is correct Postgres behaviour and Blueprint §4 mandates FORCE on tenant tables, so it cannot be avoided — it is a design constraint on M-002 onward and on every seed and data migration. The spike **must** determine and document the seeding path: does the migration set `app.tenant_id` per row-group, do policies carry a `WITH CHECK` that admits a seeding role, or does a dedicated non-forced role own the seed step? Decide deliberately in ADR-010, not by discovery during Sprint 1.
+
+**Confirmed already on the dev stack (do not re-derive, build on it):**
+- **T-2 — the fail-closed mechanism works and its exact shape matters.** `current_setting('app.tenant_id', true)` returns NULL when unset, and `tenant_id = NULL` is never true, so an unset context yields **zero rows**, not all rows. The `true` (missing_ok) argument is what prevents an exception; the NULL comparison is what makes it fail closed. Preserve both.
+- **T-3 — dev is a genuine RLS environment**, so spike results transfer: `kf_api` has no BYPASSRLS and cannot DDL, verified by SQL. Cross-tenant invisibility and fail-closed behaviour were both demonstrated on this stack before the spike began.
 
 **Security Requirements** — `kf_api` role must fail a direct `SELECT` on another tenant's rows at SQL level (proof captured in the ADR). No `BYPASSRLS` anywhere in the app path. Context must be derived only from server-side session/job data, never from request payloads.
 
@@ -648,7 +653,35 @@
 
 ---
 
-## KF-S0-OPS-002 — Docker Compose development environment
+## KF-S0-OPS-002 — Docker Compose development environment ✅ DONE (revised scope, D-17)
+
+> **Status:** DONE · 2026-08-10 · commit `6d0fd41` (6 files, +780) · preceded by `6929557`
+> **Evidence (independently verified by the planner):** 18 commits, tree clean apart from untracked `designs/`; all four M-000 roles created with explicit `NOBYPASSRLS NOCREATEDB NOCREATEROLE NOSUPERUSER`; **6 images pinned by digest** (ADR-006), 5 healthchecks, `profiles: ['tools']` on pgAdmin; `.env` gitignored and never staged; `.env.example` credentials all `dev_only_*` fakes; the `KF-S0-OPS-002a` hand-off is named in `dev-setup.sh` with its full dependency chain.
+> **Verification quality — this task justified its own acceptance criteria.** AC3 was written as "asserted by SQL, not by reading the init script", and that wording is the only reason **bug (a)** was caught: `--project-directory` made Compose resolve `./postgres/init` relative to the project dir, so the init scripts silently never ran — **Postgres reported healthy with zero roles and zero extensions**. A script-reading review would have passed it. A healthy-but-empty database reaching the TR-10 spike would have produced meaningless isolation results.
+> **Beyond the criteria:** RLS was proven functionally, not just structurally — a probe table with `FORCE ROW LEVEL SECURITY` showed `kf_api` seeing only its own tenant's row, and **zero rows with no tenant set** (fail-closed). Probe dropped. The dev environment is therefore a genuine RLS environment, so TR-10 results will transfer (T-3).
+> **Port collision occurred exactly as predicted** (a pre-existing stack held 6379). The documented override worked end-to-end, and the script was improved to translate Docker's variable-less bind error into the exact `.env` fix — including the warning that URLs built from the port do not recompute themselves.
+> **Two further bugs found and fixed:** MSYS path translation corrupting `--env-file` on Windows (fixed by relative paths, verified under both path modes); pgAdmin rejecting `.local` addresses via an undocumented `ALLOW_SPECIAL_EMAIL_DOMAINS` validator. In the latter the script behaved correctly — detected unhealthy, dumped logs, exited non-zero.
+> **Timings:** cold pull 62 s · cold volume init 20 s · warm restart 10–12 s — against a 10-minute budget. R-13's slowness did not manifest in Docker operations, further weakening the environmental explanation.
+> **DoD:** 4 (isolation foundation, proven), 10, 12, 13, 16 applicable and satisfied; 17 not evaluable (no CI); rest not applicable with reasons.
+> **Unlocks:** **`KF-S0-RLS-001` — the TR-10 spike.** Deferred: `KF-S0-OPS-002a`.
+
+---
+
+## KF-S0-OPS-002a — Complete dev-setup with migrate and seed (deferred from OPS-002)
+
+**Objective** — Finish `dev-setup.sh` with the migrate and seed steps that `KF-S0-OPS-002` could not deliver, and add the config-boot test that AC3 of the original spec required.
+
+**Source of Truth** — Sprint 0 Guide §2; `KF-S0-OPS-002` original acceptance criteria; planner decision D-17 (2026-08-10).
+
+**Dependencies** — `KF-S0-API-001` (config module), `KF-S0-API-003` (Prisma, migrations, tier-1 seed).
+
+**Files / Areas** — `scripts/dev-setup.sh`, `.env.example`, a config-boot test.
+
+**Implementation Requirements** — Append after the health wait: run migrations, run the tier-1 seed, provision a demo tenant; keep every step idempotent so re-running the script stays safe. Add the test that boots the config module from `.env.example` and fails if any required variable is missing.
+
+**Acceptance Criteria** — (1) `dev-setup.sh` on a clean volume produces a migrated, seeded, demo-tenant-ready database. (2) Running it twice succeeds with no duplicate data. (3) A variable removed from `.env.example` fails the config-boot test. (4) The original OPS-002 AC2 is now fully satisfiable: the API connects to Postgres, Redis, and S3.
+
+**Risk** Medium · **Complexity** M
 
 **Objective** — One-command local environment matching production service topology.
 

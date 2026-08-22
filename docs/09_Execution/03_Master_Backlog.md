@@ -100,6 +100,7 @@ Complexity: **S** ≤½ day · **M** ~1 day · **L** 2–3 days · **XL** split 
 | KF-S0-INFRA-005b | Exclude approved docs from auto-formatting (follow-up, R-12) | S | Low |
 | KF-S0-OPS-001 | GitHub remote, branch protection, CODEOWNERS | S | Low |
 | KF-S0-OPS-002 | Docker Compose dev environment + `dev-setup.sh` | L | Medium |
+| KF-S0-OPS-002a | Complete dev-setup with migrate + seed (deferred, D-17) | M | Medium |
 | KF-S0-OPS-003 | Dockerfiles for api and web | M | Medium |
 | KF-S0-OPS-004 | Coolify staging project + deploy pipeline | L | High |
 | KF-S0-OPS-005 | Monitoring, logging sinks, Sentry, backups + restore drill | L | Medium |
