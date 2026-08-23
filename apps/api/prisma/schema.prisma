@@ -1,0 +1,57 @@
+// KF-S0-RLS-001 (TR-10 spike) — throwaway schema, NOT the real M-002.
+// Mirrors the shapes of the real schema so results transfer. KF-S0-API-003
+// owns the production schema; this file does not merge to main (D-20).
+//
+// The `@kf-tenancy` annotation is the single source of truth for which models
+// are tenant-scoped. tooling/tenancy-manifest reads it to emit the manifest
+// consumed by BOTH the Prisma extension and (later) the migration linter, so
+// the two can never disagree about what needs a policy.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  // Prisma 7 emits ESM with extensionless relative imports by default, which
+  // Node's ESM resolver rejects. Emitting explicit `.ts` specifiers lets the
+  // spike run straight off source via node --experimental-strip-types, with no
+  // bundler in the loop to mask behaviour the probes are meant to observe.
+  moduleFormat        = "esm"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// @kf-tenancy global
+/// Root table. Real schema uses SELF_TENANT_ROOT (id = app.tenant_id); it is
+/// marked global here because it has no separate tenant_id column for the
+/// extension to inject — RLS alone scopes it.
+model SpikeOrganization {
+  id   String @id @db.Uuid
+  name String
+
+  @@map("spike_organization")
+}
+
+/// @kf-tenancy tenant-scoped
+model SpikeChild {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  fullName  String   @map("full_name")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, createdAt(sort: Desc)], map: "spike_child_tenant_created_idx")
+  @@map("spike_child")
+}
+
+/// @kf-tenancy tenant-scoped
+model SpikeAttendanceEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  childId    String   @map("child_id") @db.Uuid
+  direction  String
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  @@index([tenantId, childId, occurredAt(sort: Desc)], map: "spike_attendance_tenant_child_idx")
+  @@map("spike_attendance_event")
+}
