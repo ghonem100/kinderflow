@@ -17,6 +17,7 @@
     "@prisma/adapter-pg": "7.9.1",
     "@prisma/client": "7.9.1",
     "bullmq": "6.2.0",
+    "ioredis": "6.0.0",
     "pg": "8.23.0"
   }
 }
