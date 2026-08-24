@@ -55,3 +55,29 @@ model SpikeAttendanceEvent {
   @@index([tenantId, childId, occurredAt(sort: Desc)], map: "spike_attendance_tenant_child_idx")
   @@map("spike_attendance_event")
 }
+
+/// @kf-tenancy global
+/// Benchmark baseline twin — identical shape to SpikeChild but with NO row-level
+/// security, so the wrapper's cost can be isolated from the query's cost on the
+/// same client and pool. Marked global so the extension passes it through
+/// unscoped. Spike-only; never merges to main.
+model SpikeChildNoRls {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  fullName  String   @map("full_name")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("spike_child_norls")
+}
+
+/// @kf-tenancy global
+/// Write-path baseline twin. See SpikeChildNoRls.
+model SpikeEventNoRls {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  childId    String   @map("child_id") @db.Uuid
+  direction  String
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  @@map("spike_event_norls")
+}

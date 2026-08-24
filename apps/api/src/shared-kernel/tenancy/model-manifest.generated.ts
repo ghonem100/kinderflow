@@ -15,4 +15,8 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set([
 ]);
 
 /** Reference data. No tenant column; RLS class GLOBAL_READ or SELF_TENANT_ROOT. */
-export const GLOBAL_MODELS: ReadonlySet<string> = new Set(['SpikeOrganization']);
+export const GLOBAL_MODELS: ReadonlySet<string> = new Set([
+  'SpikeChildNoRls',
+  'SpikeEventNoRls',
+  'SpikeOrganization',
+]);
