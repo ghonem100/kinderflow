@@ -5,7 +5,18 @@
     "rootDir": "src",
     "outDir": "dist",
     "declaration": true,
-    "declarationMap": true
+    "declarationMap": true,
+
+    // Source imports carry explicit `.ts` specifiers so Node can execute this
+    // package straight from source (`node --experimental-strip-types`), which
+    // is what lets the TR-10 spike observe real runtime behaviour with no
+    // bundler in between. `rewriteRelativeImportExtensions` (TS 5.7+) rewrites
+    // them to `.js` on emit, so the built output is still correct ESM.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+
+    // The Prisma 7 client is generated TypeScript, not hand-written source.
+    "skipLibCheck": true
   },
   "include": ["src/**/*"]
 }
