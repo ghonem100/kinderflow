@@ -11,7 +11,30 @@
 
 ---
 
-## KF-S0-RLS-001 — TR-10 Spike: Prisma × PostgreSQL RLS tenant context ⚠️ ITEM 0 · CRITICAL
+## KF-S0-RLS-001 — TR-10 Spike: Prisma × PostgreSQL RLS tenant context ✅ DONE · **OPTION A ADOPTED**
+
+> **Status:** DONE within timebox · 2026-08-10 · spike branch `spike/kf-s0-rls-001-tr10` @ `defae46` (4 sub-item commits + ADR) · merged to `main` as `67349ad`
+> **Outcome: Option A adopted** — Prisma client extension + `SET LOCAL app.tenant_id` in interactive transactions. **26/26 probes pass** (21 database + 5 worker).
+> **Merge scope verified by the planner:** `main` received exactly the D-20 subset — ADR-010, the five tenancy modules, the manifest generator, Prisma deps. `apps/api/prisma/`, `apps/api/src/spike/`, `apps/api/src/generated/`, and BullMQ/ioredis are **confirmed absent** from `main`. Spike branch intact.
+> **Evidence quality — three things raise this above a passing report:**
+> 1. **AC1's "zero SQL" is proved, not inferred.** Probe `P1.0` fires first to prove the query logger was actually capturing, so "0 statements" cannot mean "silent logger".
+> 2. **D-23's negative control worked.** A deliberate plain `SET` (not `SET LOCAL`) **did leak** across a connection checkout — so the detector demonstrably catches a real leak, which is what makes the clean `P2.2` result meaningful.
+> 3. **Two benchmark designs were discarded rather than reported.** Attempt 1 compared a bare `pg` pool against Prisma's — different queues, not the wrapper — and produced the absurd result that the wrapper "improved" performance 60×. Attempt 2 was fair but single-run on a host that returned p95 2.90 ms and 287 ms for identical work on consecutive runs. Replaced with median-of-3 plus printed spread. Reporting the first numbers would have been indefensible and very easy.
+> **Performance — budget amended and ratified (L-4, founder 2026-08-10):** worst p95 overhead +56.3% against a 15% budget, but the cost is a **fixed ~1.8 ms per operation** (BEGIN + set_config + COMMIT), not a multiplier — the heavier read did strictly more work for the same absolute cost. **New budget: ≤3 ms p95 added per operation, and no endpoint may breach its own SAD §9 latency budget**, measured against a realistic endpoint rather than a micro-query. A percentage against a 2 ms query measures the query, not the wrapper.
+> **Option B is not viable as the Guide describes it — a finding about the decision matrix itself.** Option B's pooled read path requires dropping `SET LOCAL`, which leaves RLS with no tenant and returns nothing; it only works by removing the policy or granting `BYPASSRLS`, which ADR-008 forbids. Sprint 0 Guide §11's matrix should be read with this correction: at any budget option A fails, the real fallback is **option C**, not B.
+> **T-1 resolved (D-24) — path (i): migrations set `app.tenant_id` per row-group.** Path (ii) rejected as a permanent weakening of every tenant table to serve a one-off; path (iii) proved impossible — FORCE admits no owner exemption. **Sharpest finding: contextless `DELETE`/`UPDATE` are silent no-ops** — zero rows, no error (`P7.2`). That is the most dangerous shape of T-1 and is now a migration rule for `KF-S0-API-003`: set context before any DML, assert affected row counts, use `TRUNCATE` not contextless `DELETE`.
+> **Documents that no longer match reality (recorded, not silently patched):** Prisma 7 removed `url` from the datasource block — a driver adapter is now mandatory, so the pool is the JS `pg` pool, not the Rust engine's (ADR-002 predates this; `KF-S0-API-001` must configure it). An "unwrapped baseline" on an RLS table **does not exist**, so Guide §11's benchmark plan is unimplementable as written — no-RLS twin tables were used. BullMQ 6 needs an explicit ioredis client under ESM (`KF-S0-API-002`).
+> **Incidental confirmation:** commitlint rejected `docs(rls)` because INFRA-005a removed epic codes from the scope enum. The consolidation works.
+> **DoD:** 4, 10, 12, 16 applicable and satisfied; 17 not evaluable (no CI); rest not applicable with reasons.
+> **Minor gap:** ADR-010 references the spike **branch name** but not its SHA (`defae46`) as the handoff required — one-line fix, folded into `KF-S0-RLS-002`.
+> **Follow-up debt:** L-1 (`$queryRaw` on the base client escapes the transaction — lint rule candidate) and L-2 (nested `withTenant` nests rather than joins) → `KF-S1-TENANT-002`. L-3 (benchmarks single-host, not a regression baseline) → `KF-S0-CI-001`. L-5 (two tenants × 25 rows; realistic cardinality unmeasured) → `KF-S7-QA-001`. L-6 (`organizations` is `SELF_TENANT_ROOT`, must not be marked tenant-scoped in the manifest) → `KF-S1-TENANT-001`.
+> **Unlocks:** `KF-S0-RLS-002` (ratify + SHA fix), then `KF-S0-RLS-003` and `KF-S0-API-003`.
+
+---
+
+## KF-S0-RLS-001 — original specification (retained for traceability)
+
+### KF-S0-RLS-001 — TR-10 Spike: Prisma × PostgreSQL RLS tenant context ⚠️ ITEM 0 · CRITICAL
 
 **Objective** — Determine, by evidence, whether a Prisma client extension plus `SET LOCAL app.tenant_id` inside interactive transactions enforces tenant isolation reliably and performantly under real conditions; produce benchmarks, failure proofs, and a recommendation.
 
@@ -67,6 +90,12 @@
 **Files / Areas** — `docs/Decisions/ADR-010_RLS_Integration_Pattern.md`.
 
 **Implementation Requirements** — Record: chosen option (A extension + SET LOCAL / B hybrid read path / C app-layer primary with RLS backstop) with the measured evidence that selected it; limitations discovered; **coding rules for module authors** (how to open a tenant transaction, what is forbidden, how workers carry context); harness usage instructions; any follow-up debt.
+
+> **Status update 2026-08-10:** ADR-010 was **written and merged during `KF-S0-RLS-001`** (`67349ad`) — the spike produced its own decision record rather than deferring it. This task is therefore reduced to **ratification and two corrections**:
+> 1. **Ratified (founder, 2026-08-10):** the amended performance budget — **≤3 ms p95 added per operation, and no endpoint may breach its own SAD §9 latency budget**. Record it in ADR-010 §6.3 as ratified, superseding AC4's ≤15%.
+> 2. **Add the spike branch SHA** `defae46` to the ADR (it currently names the branch only).
+> 3. **Correct the decision matrix**: Sprint 0 Guide §11's option B is **not viable** — it requires dropping `SET LOCAL`, which leaves RLS with no tenant, and only works by removing the policy or granting `BYPASSRLS` (forbidden by ADR-008). Record in ADR-010 that the real fallback was always **option C**.
+> Acceptance criterion 2 below (a second engineer implements a repository from ADR-010 alone) still stands and is validated in `KF-S1-TENANT-002`.
 
 **Security Requirements** — The ADR must state explicitly which layer is authoritative and what happens on context absence (fail-closed).
 
