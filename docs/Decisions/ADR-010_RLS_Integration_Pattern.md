@@ -1,7 +1,8 @@
 # ADR-010 — Prisma × PostgreSQL RLS Integration Pattern
 
 **Status:** Accepted · 2026-08-24 · Relates to: ADR-002 (Prisma), ADR-003 (PostgreSQL), ADR-008 (Shared DB + RLS), SAD §4.2, SAD §13 (TR-10), Domain Model Part 6, Sprint 0 Guide §11
-**Spike:** `KF-S0-RLS-001` · branch `spike/kf-s0-rls-001-tr10` · SHA `c849fecde4ddca5b5932fb0a959694f8bb0175e3`
+**Spike:** `KF-S0-RLS-001` · branch `spike/kf-s0-rls-001-tr10` · tip `defae46` (full: `defae466c670305a25aeed63029bd5347a0ebb75`)
+Everything cited below — probes, benchmark, spike schema — lives at that commit. The SHA is the durable reference: branches move, and a deleted branch would otherwise leave this ADR pointing at nothing. (`c849fec`, the last code-only commit, is an ancestor of the tip.)
 
 ---
 
@@ -175,7 +176,13 @@ Option B is *"adopt for writes/sensitive reads; add a pooled read path with app-
 
 **Amended budget, replacing Sprint 0 Guide §11's blanket 15%:** the wrapper must add **≤3 ms p95 per operation**, and no user-facing endpoint may exceed its own NFR latency budget. Measured against a realistic endpoint, not a micro-query. If a specific endpoint later breaches its NFR *because of* this cost, option B is reconsidered for that endpoint alone, with numbers.
 
-This amendment is a deliberate change to an approved document's budget and needs planner ratification. It is recorded here rather than silently absorbed.
+> **RATIFIED — founder, 2026-08-10 (`KF-S0-RLS-002`).** This budget supersedes acceptance criterion 4's blanket ≤15% p95 and the same figure in Sprint 0 Guide §11. The ratified formulation is: **≤3 ms p95 added per operation, and no endpoint may breach its own SAD §9 latency budget.** Sprint 0 Guide §11 carries the matching correction row.
+
+### 6.3.1 Consequence for the decision matrix
+
+Option B being non-viable is not merely "not chosen today" — it removes a rung from the fallback ladder. Sprint 0 Guide §11 offered A → B → C; in fact, **had option A failed, the real fallback was always option C.** Any future reader treating B as an available retreat would be reaching for something that cannot exist under ADR-008.
+
+Sprint 0 Guide §11's own correction row (2026-08-10, post-spike) states the same conclusion; the two documents are deliberately aligned and should be changed together if either changes.
 
 ### 6.4 Pool pressure
 
