@@ -79,7 +79,21 @@
 
 ---
 
-## KF-S0-RLS-002 — ADR-010: RLS integration pattern decision record
+## KF-S0-RLS-002 — ADR-010: RLS integration pattern decision record ✅ DONE
+
+> **Status:** DONE · 2026-08-10 · commit `84838e8` (1 file, +9/−2) · preceded by `2a1f7ba`
+> **Evidence (independently verified by the planner):** 22 commits, tree clean apart from untracked `designs/`; the task commit touched **exactly one file**; ratified marker present at §179 naming the founder, date, and the formulation verbatim; new §6.3.1 present; `Status: Accepted` confirmed; both commits passed hooks with no bypass and left every doc byte-identical.
+> **Caught a stale reference I had not:** the ADR shipped pointing at `c849fec` — the last *code-only* commit, which **predates and therefore excludes the ADR's own commit**. Re-anchored to the branch tip `defae46` with the full SHA, keeping `c849fec` as a parenthetical so older references still resolve. **The ancestor claim was verified, not asserted** — `git merge-base --is-ancestor c849fec defae46` → TRUE (I re-ran it independently).
+> **Documents agree by construction:** ADR-010 §6.3.1 names Sprint 0 Guide §11's correction row, and the Guide's row names `KF-S0-RLS-001` — each points at the other, and §6.3.1 states explicitly that they must change together. Agreement is structural, not coincidental.
+> **⚠️ Raised — evidence durability (`KF-S0-OPS-001`):** the spike branch has **no remote** and exists on exactly one machine. ADR-010's entire evidence base — probes, benchmarks, spike schema — is one `git branch -D` plus a `git gc` away from being unrecoverable. **Push the spike branch the moment a remote exists.** This is now a named prerequisite on `KF-S0-OPS-001`.
+> **O-13 trend:** dangling lint-staged stashes at 24, up from 13 during RLS-001. Zero fsck errors, harmless, but confirms the noise will keep growing until a `git gc` runs.
+> **Still open by design:** original AC2 — a second engineer implements a tenant-scoped repository from ADR-010 alone — is validated in `KF-S1-TENANT-002`.
+> **DoD:** 12 applicable and satisfied; 17 not evaluable; rest not applicable with reasons.
+> **Unlocks:** `KF-S0-RLS-003`, `KF-S0-API-003`.
+
+---
+
+## KF-S0-RLS-002 — original specification (retained for traceability)
 
 **Objective** — Convert spike evidence into a binding architectural decision that module authors follow without further judgement.
 
@@ -485,7 +499,9 @@
 
 **Source of Truth** — Domain Model Part 6.1 (policy classes), SAD §13 TR-01; Blueprint §4; Sprint 0 Guide §10 item 0.5.
 
-**Dependencies** — `KF-S0-CI-001`, `KF-S0-RLS-002` (policy-class vocabulary confirmed by ADR-010).
+**Dependencies** — ~~`KF-S0-CI-001`~~, `KF-S0-RLS-002` (policy-class vocabulary confirmed by ADR-010).
+
+> **Dependency relaxed 2026-08-10 (founder-approved).** The `KF-S0-CI-001` dependency is **removed**: the linter is a standalone script in `tooling/`, and wiring it into a workflow is CI-001's job, not a precondition for writing it. Precedent: `pnpm lint:rules` was built as a self-contained exit-code command in `KF-S0-INFRA-003` before any CI existed, and CI-001 adopts it. **Why this matters now:** `KF-S0-API-003` depends on this task and its AC1 requires "the migration linter passes" — without this relaxation, seven migrations and seven reference tables would be written with no gate verifying their RLS policies, which is exactly the TR-01 failure mode the linter exists to prevent. CI-001 remains externally blocked on the GitHub org (DISC-009).
 
 **Files / Areas** — `tooling/migration-lint/`, CI job.
 
@@ -675,6 +691,8 @@
 **Dependencies** — `KF-S0-INFRA-001`; external: GitHub org (DISC-009).
 
 **Implementation Requirements** — Remote repo; protected `main` requiring: lint, typecheck, unit+integration, **isolation**, OpenAPI diff, build, migration validation; linear history; 1 approval (2 for `apps/api/src/modules/{billing,attendance}`, `shared-kernel/`, and any `prisma/migrations/**` path via CODEOWNERS).
+
+> **⚠️ Prerequisite added 2026-08-10 (from `KF-S0-RLS-002`) — do this FIRST, before branch protection:** push the spike branch `spike/kf-s0-rls-001-tr10` (`defae46`). It exists on **one machine with no remote**, and it holds ADR-010's entire evidence base — every probe, benchmark, and the spike schema. A `git branch -D` followed by `git gc` would make the ADR's central citations unrecoverable. Push it before anything else in this task, and confirm the SHA resolves on the remote.
 
 **Acceptance Criteria** — Direct push to `main` is rejected; a PR with a failing required check cannot merge; a PR touching billing paths requests two reviewers automatically.
 
