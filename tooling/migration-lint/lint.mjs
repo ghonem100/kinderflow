@@ -20,9 +20,24 @@
  * (Finding F-3, founder-approved 2026-08-31 during the KF-S0-CI-003 rework.)
  *
  * A table's class obligations may be satisfied by ANY migration in the
- * migration root, not only by the migration that creates it. The gate models
- * the database's actual end state, so a legitimate "enable RLS on an existing
- * table" remediation migration passes instead of being blocked.
+ * migration root, not only by the migration that creates it — so a legitimate
+ * "enable RLS on an existing table" remediation migration passes instead of
+ * being blocked.
+ *
+ * Be precise about what that does and does not mean. The gate does NOT compute
+ * the database's end state: it reads the corpus as one unordered body of SQL
+ * and asks whether each obligation is stated ANYWHERE in it. Migrations are
+ * never applied in order, and nothing here knows which statement came last.
+ *
+ * That leaves one hole, and it is closed by a rule rather than by ordering: a
+ * later migration could revoke what an earlier one granted, and every
+ * obligation would still be "stated somewhere". So `DROP POLICY`, `DISABLE ROW
+ * LEVEL SECURITY` and `NO FORCE ROW LEVEL SECURITY` are unconditional ERRORs
+ * against any policy-classed table — see REVOCATIONS below. Isolation is not
+ * withdrawn through a migration, in any order, so the gate does not need to
+ * know the order to be right. Ordering machinery would be more faithful and
+ * far more expensive; it is deliberately not built.
+ * Fixtures: `19-revocation-compliant-create.sql` + `20-…-revokes-isolation.sql`.
  *
  * Two scopes therefore exist, and they are not the same thing:
  *
@@ -42,6 +57,34 @@
  * M-001…M-007 plan, which does bundle each table with its RLS. It was rejected
  * because it permanently forbids the remediation migration, and a gate that
  * blocks correct work gets switched off.
+ * ---------------------------------------------------------------------------
+ * ANNOTATION PLACEMENT — read this before writing a migration.
+ *
+ * The annotation must be the LAST NON-BLANK LINE before its `CREATE TABLE`.
+ * Descriptive prose goes above it. Prisma's own `-- CreateTable` marker goes
+ * above it too:
+ *
+ *     -- CreateTable
+ *     <the annotation>
+ *     CREATE TABLE "children" (
+ *
+ * `21-prisma-generated-shape.sql` is the copyable template, covering all four
+ * policy classes in the exact shape `prisma migrate dev` emits.
+ *
+ * Nothing may sit between the annotation and the table — not a comment, not a
+ * blank-line-plus-comment, nothing. The rule is strict because any tolerated
+ * gap is how a stale annotation left behind by a deleted table re-classifies
+ * an unrelated table below it, which is a cross-tenant read path (finding
+ * F-2). An annotation that binds to nothing is an ERROR, never a silent
+ * discard, so a misplacement fails closed and the message names the fix.
+ *
+ * Second constraint, same reason: the marker is meaningful ANYWHERE in a
+ * comment. Migration prose therefore may not quote a specimen annotation —
+ * doing so creates a real dangling annotation and fails the file. Name the
+ * class in words and point at the template instead.
+ *
+ * This lands on roughly 55 tables across KF-S0-API-003's seven migrations, so
+ * it is recorded here, in `tooling/README.md`, and on the API-003 task entry.
  * ---------------------------------------------------------------------------
  *
  * Usage:
@@ -291,6 +334,29 @@ const isTenantLedConstraint = (item) =>
 const ANNOTATION = /--\s*@kf-rls\s+([A-Za-z_]+)/;
 const CREATE_TABLE_G = /\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([^\s(;]+)/gi;
 
+/**
+ * The three statements that take isolation away again.
+ *
+ * Reading the corpus as one body of SQL means a later migration can satisfy an
+ * earlier table's obligations — and, without this rule, could equally revoke
+ * them. A compliant table plus a later `DROP POLICY` used to leave the gate
+ * green, because every obligation had been "stated somewhere in the corpus".
+ */
+const REVOCATIONS = [
+  {
+    kind: 'DROP POLICY',
+    re: /\bDROP\s+POLICY\s+(?:IF\s+EXISTS\s+)?[^\s;]+\s+ON\s+(?:ONLY\s+)?([^\s;]+)/gi,
+  },
+  {
+    kind: 'DISABLE ROW LEVEL SECURITY',
+    re: /\bALTER\s+TABLE\s+(?:ONLY\s+)?([^\s;]+)\s+DISABLE\s+ROW\s+LEVEL\s+SECURITY/gi,
+  },
+  {
+    kind: 'NO FORCE ROW LEVEL SECURITY',
+    re: /\bALTER\s+TABLE\s+(?:ONLY\s+)?([^\s;]+)\s+NO\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/gi,
+  },
+];
+
 /** Index of each line start, so a match offset becomes a 1-based line number. */
 function lineIndex(text) {
   const starts = [0];
@@ -422,7 +488,24 @@ function parseFile(raw, file) {
 
   if (pending) danglers.push({ ...pending, reason: 'eof' });
 
-  return { tables, danglers };
+  // Pass 3 — statements that withdraw isolation. Located per file so the
+  // finding can point at the revoking line, not at the table's creation.
+  const revocations = [];
+  for (const { kind, re } of REVOCATIONS) {
+    re.lastIndex = 0;
+    let r;
+    while ((r = re.exec(clean)) !== null) {
+      revocations.push({
+        kind,
+        table: bareName(r[1]),
+        file,
+        line: lineOf(r.index),
+        statement: r[0].replace(/\s+/g, ' ').trim(),
+      });
+    }
+  }
+
+  return { tables, danglers, revocations };
 }
 
 /**
@@ -789,12 +872,14 @@ function main() {
   // ---- parse ----
   const findings = [];
   const allTables = [];
+  const allRevocations = [];
   const reported = [];
 
   for (const f of corpusFiles) {
     const rel = path.relative(ROOT, f).replace(/\\/g, '/');
-    const { tables, danglers } = parseFile(fs.readFileSync(f, 'utf8'), rel);
+    const { tables, danglers, revocations } = parseFile(fs.readFileSync(f, 'utf8'), rel);
     allTables.push(...tables);
+    for (const r of revocations) allRevocations.push({ ...r, inReportScope: reportSet.has(f) });
 
     if (!reportSet.has(f)) continue;
     reported.push(...tables);
@@ -816,6 +901,33 @@ function main() {
   resolveAgainstCorpus(allTables, corpusText);
 
   for (const t of reported) checkTable(t, findings, manifest);
+
+  // ---- isolation revocation ----
+  //
+  // Unconditional. There is no "unless", no severity ladder and no ordering
+  // machinery: a migration that drops a policy or turns RLS off is an error
+  // wherever it appears in the corpus.
+  //
+  // Reported from BOTH directions, because a PR usually contains only one of
+  // the two files. If the revoking migration is in the report scope the
+  // finding is obvious; if only the creating migration is in scope, the
+  // finding still has to fire, or `--diff` on the older file would report a
+  // table the corpus has already un-isolated.
+  const reportedTables = new Set(reported.map((t) => t.name));
+  for (const r of allRevocations) {
+    if (!r.inReportScope && !reportedTables.has(r.table)) continue;
+    findings.push({
+      severity: 'ERROR',
+      table: r.table,
+      rule: 'isolation-revoked',
+      at: `${r.file}:${r.line}`,
+      msg:
+        `"${r.statement}" withdraws isolation from a policy-classed table. ` +
+        'Isolation is not withdrawn through a migration — a table that has ever ' +
+        'been tenant-scoped stays tenant-scoped. If there is a legitimate need, ' +
+        'that is an escalation (workflow §3), not a lint fix.',
+    });
+  }
 
   // ---- reverse manifest check ----
   // Only when the whole migration root is the report scope. Under --file or

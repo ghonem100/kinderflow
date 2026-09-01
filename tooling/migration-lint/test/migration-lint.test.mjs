@@ -83,6 +83,25 @@ function workspace(fixturePrefixes, { scoped = [], global = [] } = {}) {
 
 const cleanup = (dir) => fs.rmSync(dir, { recursive: true, force: true });
 
+/**
+ * Prose to be asserted against, flattened to one line. Both the lint.mjs header
+ * and the README wrap, so a phrase that reads as one sentence can sit across
+ * two lines with a comment marker between — matching the raw text would assert
+ * the line breaks rather than the wording.
+ */
+const flatten = (text) =>
+  text
+    .replace(/^[ \t]*\*[ \t]?/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/** The leading doc comment of lint.mjs — where a migration author reads first. */
+function fileHeader() {
+  const source = fs.readFileSync(LINT, 'utf8');
+  const start = source.indexOf('/**');
+  return flatten(source.slice(start, source.indexOf('*/', start)));
+}
+
 // ===========================================================================
 // The four original acceptance criteria. Previously demonstrated by hand;
 // rework AC1 requires them to be demonstrated by this suite instead.
@@ -413,12 +432,132 @@ test('F-8 — the tenant-led-index rule is suppressed when tenant_id is missing'
 });
 
 // ===========================================================================
+// R2.2 — the corpus rule cuts both ways. A later migration can satisfy an
+// earlier table's obligations, so without this rule it could equally revoke
+// them and every obligation would still be "stated somewhere in the corpus".
+// ===========================================================================
+
+test('R2.2 — revoking isolation in a later migration fails (round-2 AC1)', () => {
+  const { code, out } = lintFixture('20');
+
+  assert.equal(code, 1, 'a migration that withdraws isolation must never exit 0');
+  assert.match(out, /fixture_reverted/, 'the table must be named');
+  assert.match(out, /\[isolation-revoked\]/);
+  assert.match(out, /escalation/, 'the message must say the remedy is not a lint fix');
+  assert.doesNotMatch(out, /PASS/);
+});
+
+test('R2.2 — each of the three revoking statements is caught and quoted', () => {
+  const { out } = lintFixture('20');
+
+  for (const statement of [
+    'DROP POLICY tenant_standard ON fixture_reverted',
+    'ALTER TABLE fixture_reverted NO FORCE ROW LEVEL SECURITY',
+    'ALTER TABLE fixture_reverted DISABLE ROW LEVEL SECURITY',
+  ]) {
+    assert.ok(out.includes(`"${statement}"`), `the finding must quote: ${statement}`);
+  }
+  assert.match(out, /3 error\(s\)/);
+});
+
+test('R2.2 — the compliant half of the pair fails too, from the other direction', () => {
+  // A PR normally contains only one of the two files. A rule that fired only
+  // when the REVOKING file was in scope would be defeated by scoping alone.
+  const { code, out } = lintFixture('19');
+
+  assert.equal(code, 1);
+  assert.match(out, /\[isolation-revoked\]/);
+  assert.match(
+    out,
+    /20-revocation-revokes-isolation\.sql/,
+    'the finding must point at the revoking line, not at the table creation',
+  );
+});
+
+test('R2.2 — the rule did not make the compliant corpus fixtures fail', () => {
+  for (const prefix of ['07', '08', '09', '10', '14', '15', '18', '21']) {
+    const { code, out } = lintFixture(prefix);
+    assert.equal(code, 0, `fixture ${prefix} must still pass, got:\n${out}`);
+    assert.doesNotMatch(out, /isolation-revoked/);
+  }
+});
+
+// ===========================================================================
+// R2.3 — the annotation placement rule versus the shape Prisma generates
+// ===========================================================================
+
+test('R2.3 — the Prisma-generated template passes (round-2 AC3)', () => {
+  const { code, out } = lintFixture('21');
+
+  assert.equal(code, 0, `the template API-003 will copy must pass, got:\n${out}`);
+  assert.match(out, /tables inspected: 3/, 'all three policy classes exercised');
+  assert.match(out, /PASS/);
+});
+
+test('R2.3 — an annotation above the -- CreateTable marker fails closed', () => {
+  // The adoption cost, pinned so it stays a documented cost rather than a
+  // surprise. Loosening the rule to accept this shape would reopen F-2.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kf-migration-lint-'));
+  const migrations = path.join(dir, 'apps', 'api', 'prisma', 'migrations');
+  fs.mkdirSync(migrations, { recursive: true });
+  fs.writeFileSync(
+    path.join(migrations, 'wrong-order.sql'),
+    [
+      '-- @kf-rls TENANT_STANDARD',
+      '-- CreateTable',
+      'CREATE TABLE "misplaced" (',
+      '    "id" UUID NOT NULL,',
+      '    "tenant_id" UUID NOT NULL,',
+      '',
+      '    CONSTRAINT "misplaced_pkey" PRIMARY KEY ("id")',
+      ');',
+      '',
+    ].join('\n'),
+  );
+  try {
+    const { code, out } = run([], dir);
+    assert.equal(code, 1);
+    assert.match(out, /\[annotation-dangling\]/, 'the misplaced annotation is named');
+    assert.match(out, /misplaced/, 'and so is the table it failed to annotate');
+    assert.match(out, /\[policy-class-missing\]/);
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test('R2.3 — the placement rule is documented where migration authors will look', () => {
+  const header = fileHeader();
+  const readme = flatten(fs.readFileSync(path.join(lintDir, '..', 'README.md'), 'utf8'));
+
+  for (const [name, text] of [
+    ['lint.mjs header', header],
+    ['tooling/README.md', readme],
+  ]) {
+    assert.match(text, /last non-blank line/i, `${name} must state the placement rule`);
+    assert.match(text, /CreateTable/, `${name} must show where Prisma's marker goes`);
+    assert.match(text, /21-prisma-generated-shape\.sql/, `${name} must name the template`);
+    assert.match(text, /anywhere in a comment/i, `${name} must state the prose constraint`);
+  }
+});
+
+test('R2.3 — the DECISION block does not claim to model the end state', () => {
+  const header = fileHeader();
+
+  assert.doesNotMatch(
+    header,
+    /models\s+the\s+database's\s+actual\s+end\s+state/,
+    'the corpus is read unordered; claiming an end state overstates it (round-2 AC2)',
+  );
+  assert.match(header, /unordered body of SQL/, 'and it must say what it actually does');
+});
+
+// ===========================================================================
 // Fixture hygiene — rework AC9
 // ===========================================================================
 
 test('every fixture states what it proves', () => {
   const files = fs.readdirSync(fixturesDir).filter((f) => f.endsWith('.sql'));
-  assert.ok(files.length >= 18, `expected the full fixture set, found ${files.length}`);
+  assert.ok(files.length >= 21, `expected the full fixture set, found ${files.length}`);
 
   for (const f of files) {
     const head = fs.readFileSync(path.join(fixturesDir, f), 'utf8').split('\n')[0];

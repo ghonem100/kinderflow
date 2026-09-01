@@ -633,6 +633,10 @@
 
 **Dependencies** — `KF-S0-RLS-002` (pattern decided), `KF-S0-CI-003` (linter available to validate).
 
+> **Annotation placement — read before writing the first migration (added 2026-08-31, `KF-S0-CI-003` round 2).** The policy-class annotation must be the **last non-blank line before its `CREATE TABLE`**. Prisma's own `-- CreateTable` marker goes *above* the annotation, and so does any descriptive prose; nothing may sit between the annotation and the table. Copy `tooling/migration-lint/__fixtures__/21-prisma-generated-shape.sql` — it is a proven-passing template covering all four policy classes in the exact shape `prisma migrate dev` emits. A misplaced annotation fails closed, naming both the dangling annotation and the now-unannotated table, so the cost is rework rather than a leak — but this lands on roughly **55 tables across seven migrations**, which is why it is recorded here rather than discovered at M-007. Second constraint: the `@kf-rls` marker is meaningful **anywhere in a comment**, so migration prose must not quote a specimen annotation — doing so creates a real dangling annotation and fails the file. Name the class in words. Both rules are stated in the header of `tooling/migration-lint/lint.mjs` and in `tooling/README.md`.
+>
+> **Also:** `pnpm lint:migrations` is **red by design** until this task lands its first migration — an empty scope is not a pass. Once M-000/M-001 exist it goes green on its own, and `KF-S0-CI-001` drops the `--allow-empty` opt-in it passes in the meantime.
+
 **Files / Areas** — `apps/api/prisma/` (schema, migrations, seed), model manifest.
 
 **Implementation Requirements**
