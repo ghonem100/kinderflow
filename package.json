@@ -14,7 +14,9 @@
     "test": "turbo run test",
     "test:isolation": "turbo run test:isolation",
     "dev": "turbo run dev",
-    "lint:rules": "node --test \"configs/eslint/test/**/*.test.mjs\""
+    "lint:rules": "node --test \"configs/eslint/test/**/*.test.mjs\"",
+    "lint:migrations": "node tooling/migration-lint/lint.mjs",
+    "test:migration-lint": "node --test \"tooling/migration-lint/test/**/*.test.mjs\""
   },
   "devDependencies": {
     "@changesets/cli": "3.0.0",

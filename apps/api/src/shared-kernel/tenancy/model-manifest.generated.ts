@@ -23,3 +23,16 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set([]);
 
 /** Reference data. No tenant column; RLS class GLOBAL_READ or SELF_TENANT_ROOT. */
 export const GLOBAL_MODELS: ReadonlySet<string> = new Set([]);
+
+/**
+ * The same two sets as PHYSICAL TABLE names, from each model's `@@map`.
+ *
+ * The migration linter reads these, not the model sets. It compares against SQL
+ * `CREATE TABLE` statements, and model names cannot be compared to table names
+ * — Domain Model Part 7 maps PascalCase singular models onto snake_case plural
+ * tables, and `Child` ↔ `children` survives no string normalisation.
+ */
+export const TENANT_SCOPED_TABLES: ReadonlySet<string> = new Set([]);
+
+/** Reference-data tables. Note: SELF_TENANT_ROOT belongs here — ADR-010 L-6. */
+export const GLOBAL_TABLES: ReadonlySet<string> = new Set([]);

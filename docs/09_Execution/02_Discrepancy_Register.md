@@ -144,6 +144,18 @@ Severity scale: **P0** blocks Sprint 0 · **P1** must resolve within Sprint 0–
 | ADR required | No — package-boundary clarification within the approved architecture |
 | Priority | **Resolved** (was P1 — would have blocked CONTRACT-001) |
 
+## DISC-012 — The committed model manifest is hand-edited, so `generate.mjs --check` will report it STALE
+
+| Field | Content |
+|---|---|
+| Document | `tooling/tenancy-manifest/generate.mjs` (its own emitted template) vs. the committed `apps/api/src/shared-kernel/tenancy/model-manifest.generated.ts` |
+| Current implementation | The committed manifest carries an "EMPTY ON PURPOSE" explanatory block — why the spike's models were not merged, and what `KF-S0-CI-001` must wire — that the generator does not emit. `--check` compares the whole file byte-for-byte (`current !== body`), so the two have never matched. Found during `KF-S0-CI-003` while adding the table-name sets required by finding F-4, which had to be hand-written into the same file to keep it consistent with the generator |
+| Approved design | The file header says "GENERATED … do not edit". A generated file with hand-written prose in it is neither generated nor authored |
+| Impact | Low today: nothing can run `--check` because `schema.prisma` does not exist, and `KF-S0-API-003` regenerates the manifest as part of its own work, which resolves the drift by overwriting it. Two real costs remain — `KF-S0-CI-001` wiring `generate.mjs --check` before `API-003` lands would get a STALE failure with no way to fix it, and the "EMPTY ON PURPOSE" rationale (which is genuinely useful) is destroyed on first regeneration with no home to move to |
+| Recommended resolution | In `KF-S0-API-003`, when the manifest is first regenerated: let the generator own the file completely, and move the "EMPTY ON PURPOSE" rationale into `tooling/tenancy-manifest/generate.mjs` as a comment where it will survive. Do **not** teach the generator to preserve hand-written blocks — that reintroduces the same ambiguity |
+| ADR required | No — housekeeping within an approved design |
+| Priority | **P3** |
+
 ---
 
 ## Summary
@@ -153,6 +165,6 @@ Severity scale: **P0** blocks Sprint 0 · **P1** must resolve within Sprint 0–
 | P0 | 3 | DISC-001, DISC-003, DISC-005 |
 | P1 | 4 | DISC-002, DISC-006 (F4/F2), DISC-007 (UXD-02/03), DISC-008, DISC-009 |
 | P2 | — | (contained within DISC-006/007) |
-| P3 | 3 | DISC-004, DISC-010, DISC-006 (F3) |
+| P3 | 4 | DISC-004, DISC-010, DISC-006 (F3), DISC-012 |
 
 **No discrepancy requires reversing an approved architectural decision.** All three P0 items are resolved by *executing* Sprint 0 as already approved. The genuine risk concentration is DISC-003 (TR-10) — it is the only entry where the answer is unknown rather than merely unexecuted.
