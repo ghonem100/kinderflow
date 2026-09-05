@@ -1,0 +1,25 @@
+# Health probe payloads. Deliberately minimal: a probe body that grows into a
+# diagnostics dump becomes an unauthenticated information leak.
+
+HealthResponse:
+  type: object
+  required: [status]
+  properties:
+    status:
+      type: string
+      enum: [ok]
+  additionalProperties: false
+
+ReadinessResponse:
+  type: object
+  required: [status, checks]
+  properties:
+    status:
+      type: string
+      enum: [ok, degraded]
+    checks:
+      type: object
+      description: Dependency name to boolean. Names only — no versions, hosts or errors.
+      additionalProperties:
+        type: boolean
+  additionalProperties: false

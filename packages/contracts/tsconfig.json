@@ -1,11 +1,13 @@
 {
   "extends": "../../configs/ts/tsconfig.base.json",
+  "_comment": "KF-S0-CONTRACT-001: `lib` adds DOM to the base's ES2022. The typed fetch client (src/client.ts) uses fetch, Headers, Response, URL and AbortSignal — standard Web APIs present in both browsers and Node 22, but not in the ES2022 lib. DOM is the dependency-free way to type them; the alternative, @types/node, would be a new dependency AND would wrongly imply this package is Node-only. Nothing here touches document or window.",
   "compilerOptions": {
     "composite": true,
     "rootDir": "src",
     "outDir": "dist",
     "declaration": true,
-    "declarationMap": true
+    "declarationMap": true,
+    "lib": ["ES2022", "DOM"]
   },
   "include": ["src/**/*"]
 }

@@ -156,6 +156,102 @@ Severity scale: **P0** blocks Sprint 0 · **P1** must resolve within Sprint 0–
 | ADR required | No — housekeeping within an approved design |
 | Priority | **P3** |
 
+## DISC-013 — `KF-S0-API-003` depends on `KF-S0-CONTRACT-001`, and neither its dependency line nor the critical path says so
+
+| Field | Content |
+|---|---|
+| Document | `04_Sprint_0.md` → `KF-S0-API-003` Dependencies line, and `13_Dependencies.md` §2 critical path, vs. the body of `KF-S0-API-003` itself |
+| Current implementation | API-003's Dependencies names only `KF-S0-RLS-002` and `KF-S0-CI-003`; the §2 diagram draws RLS-002 → API-003 directly |
+| Approved design | API-003's own body depends on `@kf/contracts` in three places: Implementation Requirement 4 (permission codes **imported from** `@kf/contracts/permissions`), Acceptance Criterion 3 (DB permission rows must **exactly equal** that map, failing on drift in either direction), and its Testing Requirements (enum parity against `@kf/contracts/enums`) |
+| Impact | Not merely ordering — correctness. M-001 creates the PostgreSQL enums and seeds the `permissions` table, and both are measured against this package. Authoring the schema before the enum and permission source of truth exists guarantees a parity argument later with no authority to settle it. AC3 is not checkable at all without the map |
+| Recommended resolution | Add `KF-S0-CONTRACT-001` to `KF-S0-API-003`'s Dependencies line and to the `13_Dependencies.md` §2 diagram. No task moves; CONTRACT-001 has no blocking dependency of its own (INFRA-004 is complete), so this records a real edge rather than re-sequencing the sprint |
+| ADR required | No |
+| Priority | **P1** — must resolve before `KF-S0-API-003` starts |
+
+## DISC-014 — Two permission-code shapes, and an action outside the approved vocabulary
+
+| Field | Content |
+|---|---|
+| Document | RBAC §2.4 (naming) vs. API Contract §2.14 and §2.17 |
+| Current implementation | `packages/contracts/src/permissions.ts` transcribes both shapes verbatim, per the founder-approved transcription rule; `PermissionCode` admits both |
+| Approved design | **Contradictory.** RBAC §2.4 defines codes as `{resource}:{action}` and names exactly eight actions plus four specials. §2.17 uses a **three-segment** `platform:{resource}:{action}` form — `platform:tenant:create`, `platform:subscription:update`, `platform:flags:*` (8 codes). §2.14 uses **`ai:configure`**, where `configure` is neither one of the eight actions nor one of the four specials; the §3 *AI configuration & quotas* row holds `R U`, which would give `ai:update` |
+| Impact | Low today, structural later. The guard, the `permissions` seed table and every `x-permission-code` all consume this map, so a shape change after Sprint 1 touches all three at once. A parser that assumes two segments silently mis-reads every platform code |
+| Recommended resolution | Founder ruling on each, then one PR. Either amend RBAC §2.4 to bless the platform plane's third segment and add `configure` to the action list, or amend API Contract §2.14/§2.17 to fit §2.4. **Do not resolve by editing `permissions.ts`** — it is a transcription, and it must move only after the document it transcribes does |
+| ADR required | No — naming clarification within an approved architecture |
+| Priority | **P2** — before the first guard is written (`KF-S1-IAM-*`) |
+
+## DISC-015 — RBAC §3 grants letters for resources and actions that no API Contract §2 endpoint exposes
+
+| Field | Content |
+|---|---|
+| Document | RBAC §3 matrix vs. API Contract §2 endpoint catalog |
+| Current implementation | **None of these codes exists in `permissions.ts`.** They are listed in `packages/contracts/PERMISSIONS_DERIVATION.md` Part B with the code each would produce |
+| Approved design | 20 residue codes across 13 matrix rows. The largest is **Staff members & assignments** — `C R U D Ar` for OWNER and `C R U` for BRANCH_MANAGER, with **no §2 endpoints at all**. Others are single missing actions: `child:delete`/`child:restore`, `consent:create`/`consent:export`, `attendance:export`, `report:export`, `incident:export`, `invoice:export`/`invoice:approve`, `payment:export`, `credit-note:read`/`credit-note:approve`, `role-assignment:read`/`role-assignment:update`, `tenant-export:*`, `breakglass:read`. Separately, **`report:publish`** is one of RBAC §2.4's four named specials and **no §2 row uses it** — §2.7 maps approve-and-publish to `report:approve`. Two **reverse** discrepancies also exist, where §2 names a code the matrix does not authorise: **`activity:delete`** (§2.7 DELETE `/activity-entries/{id}`, but the §3 *Activity entries* row holds only `C R U` — no role holds `D`, so as written the code exists and nobody can ever use it) and `ai:configure` (see DISC-014) |
+| Impact | Medium and cumulative. Every residue item is a capability the RBAC matrix promises a role and the API does not deliver; each will surface as a sprint-time "the matrix says the Owner can export invoices, where is the endpoint?". API Contract §2's own closing line calls any §2↔§3 divergence "a spec bug" |
+| Recommended resolution | Founder/Tech Lead sweep of Part B in one sitting, deciding per row: add the endpoint to §2, or strike the letter from §3. Staff is the one that likely needs a real endpoint block. Codes are added to `permissions.ts` **only after** the corresponding §2 row exists — a code invented here becomes a permission row in the database (API-003 AC3) and a guard in the API, backed by no specification |
+| ADR required | No |
+| Priority | **P2** — before the sprint that first needs each area; Staff blocks `KF-S1`/`KF-S2` staff work |
+
+## DISC-016 — The §4 error catalog assigns two HTTP statuses to nine codes
+
+| Field | Content |
+|---|---|
+| Document | API Contract §4 |
+| Current implementation | `packages/contracts/src/errors.ts` carries both statuses as a tuple (founder decision, 2026-08-31) rather than picking one |
+| Approved design | Three rows give two statuses each: `402/422` for `SUBSCRIPTION_LIMIT_REACHED`, `STORAGE_QUOTA_EXCEEDED`, `AI_QUOTA_EXCEEDED`; `415/422` for `MEDIA_TYPE_UNSUPPORTED`, `MEDIA_TOO_LARGE`, `MEDIA_QUARANTINED`; and `502/503` for `AI_PROVIDER_UNAVAILABLE`, `STORAGE_UNAVAILABLE`, `SERVICE_UNAVAILABLE`. §4's own rule says "codes are stable API contract (documented per endpoint in OpenAPI)", which a two-valued status cannot satisfy at the OpenAPI level |
+| Impact | Low now, real at implementation. Every one of these codes needs a single number in an OpenAPI response object, so the choice cannot be deferred past the endpoint that returns it. None of the nine appears on this task's seeded `/health` or `/auth` paths, which is why carrying the pair costs nothing today |
+| Recommended resolution | `KF-S0-API-001` picks the single status per code as it writes each endpoint, and records the reading here. The likely split is not uniform — 415 belongs to a rejected `Content-Type` and 422 to a rejected body, so the `415/422` row plausibly resolves to different numbers for different codes |
+| ADR required | No |
+| Priority | **P2** — before the first endpoint returning one of the nine |
+
+## DISC-017 — Three Domain Part 8 enums have no member set in any approved document
+
+| Field | Content |
+|---|---|
+| Document | Domain Model Part 8 (names the enums), Part 2 lifecycles and Part 3 entity catalog (should supply the members) |
+| Current implementation | `packages/contracts/src/enums.ts` declares all sixteen. `SyncStatus`, `NotificationChannel` and `PlanCode` ship with an **empty member tuple**, which types them as `never` so any use fails to compile |
+| Approved design | Missing per enum: **`SyncStatus`** — API Contract §5 enumerates `APPLIED / DUPLICATE / PENDING_REVIEW / REJECTED`, but that is the per-event *result* in the sync *response*, not the domain of the stored `attendance_events.sync_status` column; §5 confirms exactly one stored value, `pending_review`. **`NotificationChannel`** — ambiguous rather than absent: SAD §10 describes the worker as "Push/email/SMS dispatch" (three), while SAD §2 covers iOS push limits with "in-app + fallback channels" (a fourth). **`PlanCode`** — BRD D2 fixes "exactly three plans" and Part 3 row 4 requires `unique(code)`, but the three codes are named nowhere and §11 lists price points as TBD |
+| Impact | **Blocks part of `KF-S0-API-003`.** M-001 creates these as PostgreSQL enums and the tier-1 seed inserts `subscription_plans` rows keyed by `PlanCode`. Part 8's own note says additive changes are safe but renames need expand-contract, so a guessed member becomes a migration rather than an edit |
+| Recommended resolution | Founder answers three questions: the stored domain of `sync_status`; whether `IN_APP` is a notification channel alongside push/email/SMS; and the three plan codes. Then `enums.ts` is filled and the gap closes. Members are **not** invented in the meantime — the empty tuple fails the build at the point of use, which is the correct place to find out |
+| ADR required | No — documentation gap, not a design decision |
+| Priority | **P1** — `PlanCode` and `SyncStatus` are needed by `KF-S0-API-003` (M-001 seed, M-005 attendance) |
+
+## DISC-018 — Domain Part 8 spells an enum "Media Status", with a space
+
+| Field | Content |
+|---|---|
+| Document | Domain Model Part 8, Prisma Planning row |
+| Current implementation | `packages/contracts/src/enums.ts` exports `MediaStatus` |
+| Approved design | The enum list reads `… EmploymentStatus, Media Status, PlanCode`. A space makes it an invalid identifier in TypeScript, Prisma and PostgreSQL alike, so it cannot be transcribed literally |
+| Impact | Cosmetic; caught immediately by any attempt to use it |
+| Recommended resolution | Correct the typo to `MediaStatus` in Domain Model Part 8 at the next revision of that document. The code already reads `MediaStatus`; nothing depends on the resolution |
+| ADR required | No |
+| Priority | **P3** |
+
+## DISC-019 — `ActivityType` is enumerated twice, with different members
+
+| Field | Content |
+|---|---|
+| Document | Domain Model §2.5 vs. API Contract §2.7 |
+| Current implementation | `packages/contracts/src/enums.ts` ships **seven** members (founder decision, 2026-08-31) |
+| Approved design | **Contradictory.** Domain Model §2.5 defines the aggregate as "ActivityEntry (root; typed: MEAL, NAP, DIAPER, MOOD, LEARNING, NOTE, **MEDICATION_ADMIN**)". API Contract §2.7 describes POST `/activity-entries` as "Log typed event (MEAL/NAP/DIAPER/MOOD/LEARNING/NOTE)" — the same six without `MEDICATION_ADMIN`. Part 8 points at the Domain Model for enums, which is why the seven-member list ships |
+| Impact | Low and additive-safe in the direction taken. The risk if §2.7 is the correct list is a PostgreSQL enum member nothing ever writes; the risk in the other direction would have been an expand-contract migration |
+| Recommended resolution | Confirm that medication administration is recorded both as its own aggregate (§2.8, `medication_administrations`) **and** as an activity entry for the daily timeline; if so, add `MEDICATION_ADMIN` to API Contract §2.7's list. If not, strike it from Domain §2.5 and drop the member before M-005 |
+| ADR required | No |
+| Priority | **P2** — before M-005 creates the enum |
+
+## DISC-020 — API Contract §2.1 names an error code the §4 catalog does not define
+
+| Field | Content |
+|---|---|
+| Document | API Contract §2.1 (`/auth/refresh` row) vs. §4 error catalog |
+| Current implementation | `packages/contracts/openapi.yaml` describes the refresh-reuse behaviour **without** naming a code, and says why in the operation description. `errors.ts` does not define one |
+| Approved design | §2.1's `/auth/refresh` row reads "`AUTH_TOKEN_REUSED` → family revoked". §4 lists no such code. §4's governance rule (§10) is explicit that "new codes need a catalog PR", and this task's AC3 fails any code named in a path but absent from `errors.ts` |
+| Impact | Low but exactly the shape the gate exists to catch: the alternative was inventing a catalog entry to satisfy the test, which would put a code in the API that no approved document authorises |
+| Recommended resolution | Add `AUTH_TOKEN_REUSED` to API Contract §4 (401, credential flows) via a catalog PR, then to `errors.ts` and the refresh operation's 401 description. Until then the behaviour is documented in prose and returns a generic 401 from the catalog |
+| ADR required | No |
+| Priority | **P2** — before `KF-S1-IAM-*` implements refresh rotation |
+
 ---
 
 ## Summary
@@ -163,8 +259,8 @@ Severity scale: **P0** blocks Sprint 0 · **P1** must resolve within Sprint 0–
 | Priority | Count | IDs |
 |---|---|---|
 | P0 | 3 | DISC-001, DISC-003, DISC-005 |
-| P1 | 4 | DISC-002, DISC-006 (F4/F2), DISC-007 (UXD-02/03), DISC-008, DISC-009 |
-| P2 | — | (contained within DISC-006/007) |
-| P3 | 4 | DISC-004, DISC-010, DISC-006 (F3), DISC-012 |
+| P1 | 6 | DISC-002, DISC-006 (F4/F2), DISC-007 (UXD-02/03), DISC-008, DISC-009, DISC-013, DISC-017 |
+| P2 | 5 | DISC-014, DISC-015, DISC-016, DISC-019, DISC-020 (plus items contained within DISC-006/007) |
+| P3 | 6 | DISC-004, DISC-010, DISC-006 (F3), DISC-012, DISC-018 |
 
 **No discrepancy requires reversing an approved architectural decision.** All three P0 items are resolved by *executing* Sprint 0 as already approved. The genuine risk concentration is DISC-003 (TR-10) — it is the only entry where the answer is unknown rather than merely unexecuted.

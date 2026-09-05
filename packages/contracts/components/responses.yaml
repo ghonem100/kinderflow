@@ -1,0 +1,77 @@
+# Shared responses and headers. Every error body is the §4 ProblemDetails
+# shape; the `code` inside it is the stable contract, not the HTTP status.
+
+headers:
+  # §1 rate limiting — RateLimitHeaders in the §8 shared-component list.
+  RateLimitLimit:
+    description: Requests permitted in the current window.
+    schema:
+      type: integer
+  RateLimitRemaining:
+    description: Requests remaining in the current window.
+    schema:
+      type: integer
+  RateLimitReset:
+    description: Seconds until the window resets.
+    schema:
+      type: integer
+
+responses:
+  BadRequest:
+    description: '`REQUEST_MALFORMED` — unparseable body or query.'
+    content:
+      application/problem+json:
+        schema:
+          $ref: './schemas/common.yaml#/ProblemDetails'
+
+  Unauthorized:
+    description: >-
+      `AUTH_REQUIRED`, `AUTH_TOKEN_EXPIRED`, `AUTH_TOKEN_INVALID`,
+      `AUTH_SESSION_REVOKED`, or a credential-flow failure.
+    content:
+      application/problem+json:
+        schema:
+          $ref: './schemas/common.yaml#/ProblemDetails'
+
+  Forbidden:
+    description: >-
+      `PERMISSION_DENIED`, `SCOPE_DENIED`, `TENANT_SUSPENDED`, `MFA_REQUIRED`,
+      or a domain-security refusal.
+    content:
+      application/problem+json:
+        schema:
+          $ref: './schemas/common.yaml#/ProblemDetails'
+
+  NotFound:
+    description: >-
+      `RESOURCE_NOT_FOUND`. Also returned for a cross-tenant id, so existence
+      never leaks (§4); the SEC-PERM-003 tripwire fires internally.
+    content:
+      application/problem+json:
+        schema:
+          $ref: './schemas/common.yaml#/ProblemDetails'
+
+  UnprocessableEntity:
+    description: '`VALIDATION_FAILED` with `errors[]` JSON Pointers, or a business-rule code.'
+    content:
+      application/problem+json:
+        schema:
+          $ref: './schemas/common.yaml#/ProblemDetails'
+
+  TooManyRequests:
+    description: '`RATE_LIMITED`. Carries `Retry-After`.'
+    headers:
+      Retry-After:
+        description: Seconds to wait before retrying.
+        schema:
+          type: integer
+      RateLimit-Limit:
+        $ref: '#/headers/RateLimitLimit'
+      RateLimit-Remaining:
+        $ref: '#/headers/RateLimitRemaining'
+      RateLimit-Reset:
+        $ref: '#/headers/RateLimitReset'
+    content:
+      application/problem+json:
+        schema:
+          $ref: './schemas/common.yaml#/ProblemDetails'

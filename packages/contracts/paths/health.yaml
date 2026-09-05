@@ -1,0 +1,62 @@
+# Liveness and readiness. Unauthenticated by necessity — a probe that needs a
+# token cannot report that authentication is down.
+#
+# Both carry `x-permission-code: public`, not because a probe needs a
+# permission but because the contracts test allows no operation to omit the
+# extension. Silence is what lets an endpoint ship unguarded.
+
+live:
+  get:
+    tags: [health]
+    operationId: healthLive
+    summary: Liveness probe
+    description: The process is up. Checks nothing downstream, so it never cascades.
+    security: []
+    x-permission-code: public
+    x-rate-limit-tier: none
+    x-audit-events: []
+    x-idempotency: optional
+    responses:
+      '200':
+        description: Process is alive.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '../components/schemas/health.yaml#/HealthResponse'
+              additionalProperties: false
+
+ready:
+  get:
+    tags: [health]
+    operationId: healthReady
+    summary: Readiness probe
+    description: >-
+      Dependencies required to serve traffic are reachable. Returns 503 when
+      not ready, so an orchestrator removes the instance from rotation.
+    security: []
+    x-permission-code: public
+    x-rate-limit-tier: none
+    x-audit-events: []
+    x-idempotency: optional
+    responses:
+      '200':
+        description: Ready to serve.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '../components/schemas/health.yaml#/ReadinessResponse'
+              additionalProperties: false
+      '503':
+        description: '`SERVICE_UNAVAILABLE` — a required dependency is not reachable.'
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/ProblemDetails'

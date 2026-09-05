@@ -1,0 +1,142 @@
+# §2.1 Authentication payloads. DEFINITIONS ONLY — the implementation is
+# Sprint 1 (KF-S1-IAM-*). Field lists follow §3.1: every property is explicitly
+# required, optional or nullable; there are no implicit nulls.
+
+LoginRequest:
+  type: object
+  required: [email, password]
+  properties:
+    email:
+      type: string
+      format: email
+      maxLength: 320
+    password:
+      type: string
+      minLength: 12
+      maxLength: 256
+      description: Policy is SAD §5.1; the API states length bounds only.
+  additionalProperties: false
+
+LoginResponse:
+  type: object
+  required: [access_token, expires_in, token_type]
+  properties:
+    access_token:
+      type: string
+    token_type:
+      type: string
+      enum: [Bearer]
+    expires_in:
+      type: integer
+      description: Seconds until the access token expires.
+  additionalProperties: false
+  description: >-
+    The refresh token is NOT in this body. It is set as an httpOnly cookie
+    confined to the `/auth/refresh` path (API Contract §7).
+
+RefreshResponse:
+  allOf:
+    - $ref: '#/LoginResponse'
+  description: Rotates the refresh family. Reuse of a rotated token revokes the whole family.
+
+PasswordForgotRequest:
+  type: object
+  required: [email]
+  properties:
+    email:
+      type: string
+      format: email
+      maxLength: 320
+  additionalProperties: false
+
+PasswordResetRequest:
+  type: object
+  required: [token, password]
+  properties:
+    token:
+      type: string
+      description: One-time token from the emailed link.
+    password:
+      type: string
+      minLength: 12
+      maxLength: 256
+  additionalProperties: false
+
+InvitationAcceptRequest:
+  type: object
+  required: [token, password]
+  properties:
+    token:
+      type: string
+      description: Signed one-time activation link token.
+    password:
+      type: string
+      minLength: 12
+      maxLength: 256
+    display_name:
+      type: string
+      maxLength: 120
+  additionalProperties: false
+
+# §2.1 GET /auth/me — "Current user, roles, scopes, tenant".
+CurrentUserResponse:
+  type: object
+  required: [id, email, tenant_id, roles]
+  properties:
+    id:
+      $ref: './common.yaml#/Uuid'
+    email:
+      type: string
+      format: email
+    tenant_id:
+      oneOf:
+        - $ref: './common.yaml#/Uuid'
+        - type: 'null'
+      description: Null for platform staff, who hold no tenant (Domain Part 3 row 8).
+    display_name:
+      type: string
+    roles:
+      type: array
+      description: >-
+        Granted roles with their scope binding. Scope is a property of the
+        grant, never part of a permission code (RBAC §2.3 / §2.4).
+      items:
+        type: object
+        required: [role, scope]
+        properties:
+          role:
+            type: string
+          scope:
+            type: string
+            enum: [tenant, branch, classroom, own-children, platform]
+          branch_id:
+            oneOf:
+              - $ref: './common.yaml#/Uuid'
+              - type: 'null'
+          classroom_id:
+            oneOf:
+              - $ref: './common.yaml#/Uuid'
+              - type: 'null'
+        additionalProperties: false
+  additionalProperties: false
+
+MfaEnrollResponse:
+  type: object
+  required: [secret, otpauth_url]
+  properties:
+    secret:
+      type: string
+      description: TOTP shared secret. Stored encrypted (Domain Part 3 row 10).
+    otpauth_url:
+      type: string
+      format: uri
+  additionalProperties: false
+
+MfaVerifyRequest:
+  type: object
+  required: [code]
+  properties:
+    code:
+      type: string
+      pattern: '^[0-9]{6}$'
+  additionalProperties: false

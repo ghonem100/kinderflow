@@ -1,0 +1,281 @@
+# §2.1 Authentication — RL-A (10/min/IP), public where noted.
+#
+# DEFINITIONS ONLY. Sprint 1 implements these (KF-S1-IAM-*); this task ships
+# the contract they will be measured against. Audit events are transcribed
+# from the §2.1 Audit column and name the RBAC §7 security-event catalog.
+
+login:
+  post:
+    tags: [auth]
+    operationId: authLogin
+    summary: Email + password sign-in
+    description: Returns an access token; the refresh token is set as an httpOnly cookie.
+    security: []
+    x-permission-code: public
+    x-rate-limit-tier: RL-A
+    x-audit-events: [SEC-AUTH-001, SEC-AUTH-002]
+    x-idempotency: optional
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/auth.yaml#/LoginRequest'
+    responses:
+      '200':
+        description: Authenticated.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '../components/schemas/auth.yaml#/LoginResponse'
+              additionalProperties: false
+      '400':
+        $ref: '../components/responses.yaml#/responses/BadRequest'
+      '401':
+        description: AUTH_INVALID_CREDENTIALS.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/ProblemDetails'
+      '403':
+        description: AUTH_ACCOUNT_LOCKED — lockout policy is RBAC §1.1.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/ProblemDetails'
+      '429':
+        $ref: '../components/responses.yaml#/responses/TooManyRequests'
+
+refresh:
+  post:
+    tags: [auth]
+    operationId: authRefresh
+    summary: Rotate the refresh token
+    description: >-
+      Reads the httpOnly refresh cookie, rotates the family and issues a new
+      access token. Reuse of an already-rotated token revokes the entire
+      family and raises SEC-TOKEN-002.
+
+
+      The refusal returns a 401 from the catalog. API Contract §2.1 names a
+      dedicated code for token reuse that §4's catalog does not define; that
+      code is deliberately not written here, because a code named in a path and
+      absent from errors.ts is what the contracts test fails on, and inventing
+      the catalog entry to satisfy the test would put a code in the API that no
+      approved document authorises. Registered as DISC-020.
+    security: []
+    x-permission-code: public
+    x-rate-limit-tier: RL-A
+    x-audit-events: [SEC-TOKEN-001, SEC-TOKEN-002]
+    x-idempotency: optional
+    responses:
+      '200':
+        description: Rotated.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '../components/schemas/auth.yaml#/RefreshResponse'
+              additionalProperties: false
+      '401':
+        $ref: '../components/responses.yaml#/responses/Unauthorized'
+      '429':
+        $ref: '../components/responses.yaml#/responses/TooManyRequests'
+
+logout:
+  post:
+    tags: [auth]
+    operationId: authLogout
+    summary: Revoke the current session
+    description: Revokes this session's jti. Requires a session, but no permission code.
+    x-permission-code: authenticated
+    x-rate-limit-tier: RL-A
+    x-audit-events: [SEC-AUTH-003]
+    x-idempotency: optional
+    responses:
+      '204':
+        description: Session revoked.
+      '401':
+        $ref: '../components/responses.yaml#/responses/Unauthorized'
+
+passwordForgot:
+  post:
+    tags: [auth]
+    operationId: authPasswordForgot
+    summary: Request a password reset link
+    description: >-
+      Always 202, whether or not the address exists — the response must not
+      enumerate users (§2.1).
+    security: []
+    x-permission-code: public
+    x-rate-limit-tier: RL-A
+    x-audit-events: [SEC-AUTH-005]
+    x-idempotency: optional
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/auth.yaml#/PasswordForgotRequest'
+    responses:
+      '202':
+        description: Accepted. Carries no information about whether the account exists.
+      '429':
+        $ref: '../components/responses.yaml#/responses/TooManyRequests'
+
+passwordReset:
+  post:
+    tags: [auth]
+    operationId: authPasswordReset
+    summary: Consume a reset token and set a new password
+    description: Revokes all of the user's sessions on success (§2.1).
+    security: []
+    x-permission-code: public
+    x-rate-limit-tier: RL-A
+    x-audit-events: [SEC-AUTH-005]
+    x-idempotency: optional
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/auth.yaml#/PasswordResetRequest'
+    responses:
+      '204':
+        description: Password set; every session revoked.
+      '401':
+        description: AUTH_RESET_TOKEN_INVALID.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/ProblemDetails'
+      '422':
+        $ref: '../components/responses.yaml#/responses/UnprocessableEntity'
+      '429':
+        $ref: '../components/responses.yaml#/responses/TooManyRequests'
+
+invitationsAccept:
+  post:
+    tags: [auth]
+    operationId: authInvitationsAccept
+    summary: Activate an account from a signed invitation link
+    description: Parent and staff activation (§2.1).
+    security: []
+    x-permission-code: public
+    x-rate-limit-tier: RL-A
+    x-audit-events: [SEC-AUTH-001]
+    x-idempotency: optional
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/auth.yaml#/InvitationAcceptRequest'
+    responses:
+      '200':
+        description: Activated and signed in.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '../components/schemas/auth.yaml#/LoginResponse'
+              additionalProperties: false
+      '401':
+        description: AUTH_INVITE_EXPIRED.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/ProblemDetails'
+      '422':
+        $ref: '../components/responses.yaml#/responses/UnprocessableEntity'
+      '429':
+        $ref: '../components/responses.yaml#/responses/TooManyRequests'
+
+me:
+  get:
+    tags: [auth]
+    operationId: authMe
+    summary: Current user, roles, scopes and tenant
+    description: Cache-Control is no-store (§2.1).
+    x-permission-code: authenticated
+    x-rate-limit-tier: RL-B
+    x-audit-events: []
+    x-idempotency: optional
+    parameters:
+      - $ref: '../components/parameters.yaml#/AcceptLanguageHeader'
+    responses:
+      '200':
+        description: The authenticated principal.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '../components/schemas/auth.yaml#/CurrentUserResponse'
+              additionalProperties: false
+      '401':
+        $ref: '../components/responses.yaml#/responses/Unauthorized'
+
+mfaEnroll:
+  post:
+    tags: [auth]
+    operationId: authMfaEnroll
+    summary: Begin TOTP enrollment
+    description: Self-service only. Enforcement is post-MVP (§2.1).
+    x-permission-code: user:update
+    x-rate-limit-tier: RL-A
+    x-audit-events: [SEC-AUTH-006]
+    x-idempotency: optional
+    responses:
+      '200':
+        description: Enrollment secret issued.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '../components/schemas/auth.yaml#/MfaEnrollResponse'
+              additionalProperties: false
+      '401':
+        $ref: '../components/responses.yaml#/responses/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/responses/Forbidden'
+
+mfaVerify:
+  post:
+    tags: [auth]
+    operationId: authMfaVerify
+    summary: Confirm TOTP enrollment
+    x-permission-code: user:update
+    x-rate-limit-tier: RL-A
+    x-audit-events: [SEC-AUTH-006]
+    x-idempotency: optional
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/auth.yaml#/MfaVerifyRequest'
+    responses:
+      '204':
+        description: Enrollment verified.
+      '401':
+        $ref: '../components/responses.yaml#/responses/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/responses/Forbidden'
+      '422':
+        $ref: '../components/responses.yaml#/responses/UnprocessableEntity'

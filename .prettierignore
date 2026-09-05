@@ -1,0 +1,14 @@
+# Generated output. Prettier must not touch these: `generate.mjs --check`
+# compares the committed file byte-for-byte against a fresh generation, so a
+# formatter rewriting them would make the drift gate fail on formatting rather
+# than on real spec drift — and lint-staged runs `prettier --write` on every
+# staged code file, so this is not hypothetical.
+#
+# The generator owns the formatting of what it emits (KF-S0-CONTRACT-001).
+packages/contracts/src/generated/
+
+# Build output and dependencies.
+**/dist/
+**/.turbo/
+node_modules/
+pnpm-lock.yaml

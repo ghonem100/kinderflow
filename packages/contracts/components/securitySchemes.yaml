@@ -1,0 +1,10 @@
+# API Contract §8 — `bearerJwt` applied globally; `public` operations override
+# with `security: []`. Bearer JWT only; no API keys at MVP (§7).
+bearerJwt:
+  type: http
+  scheme: bearer
+  bearerFormat: JWT
+  description: |
+    Access token from `POST /auth/login`. The refresh token is an httpOnly
+    cookie confined to the `/auth/refresh` path and is never sent as a bearer
+    token (API Contract §7).

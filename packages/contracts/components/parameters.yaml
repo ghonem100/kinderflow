@@ -1,0 +1,51 @@
+# Shared parameters — API Contract §1 (pagination, idempotency, concurrency,
+# localization) and §8 (named components).
+
+CursorParam:
+  name: cursor
+  in: query
+  required: false
+  description: Opaque signed cursor from `meta.next_cursor`. Offset pagination exists nowhere.
+  schema:
+    type: string
+
+LimitParam:
+  name: limit
+  in: query
+  required: false
+  description: Page size. Maximum 100 (API Contract §1).
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 100
+    default: 25
+
+# §1: required on the four named POSTs, optional on all others. 48 h Redis
+# retention; a replay returns the original response plus `Idempotency-Replayed`.
+IdempotencyKeyHeader:
+  name: Idempotency-Key
+  in: header
+  required: false
+  description: UUID. Required where the operation declares x-idempotency required; optional elsewhere.
+  schema:
+    type: string
+    format: uuid
+
+# §1: optimistic locking. Mutating requests on mutable aggregates send the
+# version they read; a mismatch is 409 VERSION_CONFLICT, never a lost update.
+IfMatchHeader:
+  name: If-Match
+  in: header
+  required: false
+  description: Quoted `version` of the aggregate being modified.
+  schema:
+    type: string
+
+AcceptLanguageHeader:
+  name: Accept-Language
+  in: header
+  required: false
+  description: '`ar` or `en`. Selects the language of `detail` and localized labels.'
+  schema:
+    type: string
+    enum: [ar, en]

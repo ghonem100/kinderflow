@@ -1,0 +1,181 @@
+# KinderFlow API — OpenAPI 3.1 root.
+#
+# KF-S0-CONTRACT-001. Spec-first: this file is AUTHORED, never generated from
+# decorators. KF-S0-API-001 diffs the NestJS-produced spec against it and fails
+# the build on divergence (API Contract §8, SAD §8.1).
+#
+# Layout is API Contract §8: this root plus a $ref split into `paths/{module}.yaml`
+# and `components/…`. Only the seed paths exist so far — /health/* and the §2.1
+# /auth operations, as DEFINITIONS ONLY. Their implementation is Sprint 1; this
+# task ships no code that serves a request.
+#
+# EVERY operation carries `x-permission-code`. Operations that need no
+# permission still carry it, with one of two sentinels transcribed from the
+# contract's own Perm column:
+#   public          §2.1 "public" / "public (cookie)" — no authentication
+#   authenticated   §2.1 "any authenticated" / "any"  — session only, no code
+# There is no third state and no omission: the contracts test fails an
+# operation with no `x-permission-code`, which is what makes a forgotten
+# permission a build failure rather than an endpoint anyone can call.
+openapi: 3.1.0
+
+info:
+  title: KinderFlow API
+  # Semver, independent of the URI major version (API Contract §8).
+  version: 0.1.0
+  description: |
+    Nursery management platform API. The authorization vocabulary is
+    `@kf/contracts` `permissions.ts`; the error catalog is `errors.ts`.
+    Both are generated into no code here — they are the source of truth
+    this document is checked against.
+  license:
+    name: UNLICENSED
+
+servers:
+  - url: https://api.kinderflow.app/api/v1
+    description: Production
+  - url: https://staging-api.kinderflow.app/api/v1
+    description: Staging
+
+# Bearer JWT globally; `public` operations override with `security: []`.
+security:
+  - bearerJwt: []
+
+# One tag per §2 module, with `platform` isolated (API Contract §8).
+tags:
+  - name: health
+    description: Liveness and readiness probes. Unauthenticated, uncounted.
+  - name: auth
+    description: Authentication and session lifecycle. API Contract §2.1.
+  - name: organization
+    description: Organization profile and tenant settings. §2.2.
+  - name: structure
+    description: Branches and classrooms. §2.3.
+  - name: iam
+    description: Users, roles and role assignments. §2.4.
+  - name: children
+    description: Children, guardians, pickups, medical, consents, documents. §2.5.
+  - name: attendance
+    description: Check-in/out, days, amendments. Safety-critical. §2.6.
+  - name: activities
+    description: Activity entries and daily reports. §2.7.
+  - name: medication
+    description: Authorizations and administrations. Safety-critical. §2.8.
+  - name: incidents
+    description: Incident filing, approval, acknowledgment. §2.9.
+  - name: media
+    description: Upload pipeline and consent-aware access. §2.10.
+  - name: billing
+    description: Fee plans, invoices, payments, credit notes. §2.11.
+  - name: communication
+    description: Conversations, announcements, notifications. §2.12.
+  - name: analytics
+    description: KPI dashboards and exports. §2.13.
+  - name: ai
+    description: Usage and configuration. Drafting lives under daily reports. §2.14.
+  - name: audit
+    description: Audit log reads and exports. §2.15.
+  - name: subscription
+    description: Plan, quotas, usage. §2.16.
+  - name: platform
+    description: Super-admin platform plane. SUPER_ADMIN / SYSTEM only. §2.17.
+
+paths:
+  /health/live:
+    $ref: './paths/health.yaml#/live'
+  /health/ready:
+    $ref: './paths/health.yaml#/ready'
+
+  /auth/login:
+    $ref: './paths/auth.yaml#/login'
+  /auth/refresh:
+    $ref: './paths/auth.yaml#/refresh'
+  /auth/logout:
+    $ref: './paths/auth.yaml#/logout'
+  /auth/password/forgot:
+    $ref: './paths/auth.yaml#/passwordForgot'
+  /auth/password/reset:
+    $ref: './paths/auth.yaml#/passwordReset'
+  /auth/invitations/accept:
+    $ref: './paths/auth.yaml#/invitationsAccept'
+  /auth/me:
+    $ref: './paths/auth.yaml#/me'
+  /auth/mfa/enroll:
+    $ref: './paths/auth.yaml#/mfaEnroll'
+  /auth/mfa/verify:
+    $ref: './paths/auth.yaml#/mfaVerify'
+
+components:
+  securitySchemes:
+    bearerJwt:
+      $ref: './components/securitySchemes.yaml#/bearerJwt'
+
+  parameters:
+    CursorParam:
+      $ref: './components/parameters.yaml#/CursorParam'
+    LimitParam:
+      $ref: './components/parameters.yaml#/LimitParam'
+    IdempotencyKeyHeader:
+      $ref: './components/parameters.yaml#/IdempotencyKeyHeader'
+    IfMatchHeader:
+      $ref: './components/parameters.yaml#/IfMatchHeader'
+    AcceptLanguageHeader:
+      $ref: './components/parameters.yaml#/AcceptLanguageHeader'
+
+  headers:
+    RateLimitLimit:
+      $ref: './components/responses.yaml#/headers/RateLimitLimit'
+    RateLimitRemaining:
+      $ref: './components/responses.yaml#/headers/RateLimitRemaining'
+    RateLimitReset:
+      $ref: './components/responses.yaml#/headers/RateLimitReset'
+
+  responses:
+    BadRequest:
+      $ref: './components/responses.yaml#/responses/BadRequest'
+    Unauthorized:
+      $ref: './components/responses.yaml#/responses/Unauthorized'
+    Forbidden:
+      $ref: './components/responses.yaml#/responses/Forbidden'
+    NotFound:
+      $ref: './components/responses.yaml#/responses/NotFound'
+    UnprocessableEntity:
+      $ref: './components/responses.yaml#/responses/UnprocessableEntity'
+    TooManyRequests:
+      $ref: './components/responses.yaml#/responses/TooManyRequests'
+
+  schemas:
+    ProblemDetails:
+      $ref: './components/schemas/common.yaml#/ProblemDetails'
+    ProblemDetailItem:
+      $ref: './components/schemas/common.yaml#/ProblemDetailItem'
+    PaginatedMeta:
+      $ref: './components/schemas/common.yaml#/PaginatedMeta'
+    Money:
+      $ref: './components/schemas/common.yaml#/Money'
+    LocalizedText:
+      $ref: './components/schemas/common.yaml#/LocalizedText'
+    Uuid:
+      $ref: './components/schemas/common.yaml#/Uuid'
+    LoginRequest:
+      $ref: './components/schemas/auth.yaml#/LoginRequest'
+    LoginResponse:
+      $ref: './components/schemas/auth.yaml#/LoginResponse'
+    RefreshResponse:
+      $ref: './components/schemas/auth.yaml#/RefreshResponse'
+    PasswordForgotRequest:
+      $ref: './components/schemas/auth.yaml#/PasswordForgotRequest'
+    PasswordResetRequest:
+      $ref: './components/schemas/auth.yaml#/PasswordResetRequest'
+    InvitationAcceptRequest:
+      $ref: './components/schemas/auth.yaml#/InvitationAcceptRequest'
+    CurrentUserResponse:
+      $ref: './components/schemas/auth.yaml#/CurrentUserResponse'
+    MfaEnrollResponse:
+      $ref: './components/schemas/auth.yaml#/MfaEnrollResponse'
+    MfaVerifyRequest:
+      $ref: './components/schemas/auth.yaml#/MfaVerifyRequest'
+    HealthResponse:
+      $ref: './components/schemas/health.yaml#/HealthResponse'
+    ReadinessResponse:
+      $ref: './components/schemas/health.yaml#/ReadinessResponse'

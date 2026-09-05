@@ -1,0 +1,89 @@
+# Shared schemas — the §8 list: ProblemDetails, PaginatedMeta, Money,
+# LocalizedText (IdempotencyKeyHeader / IfMatchHeader / RateLimitHeaders are
+# parameters and headers, and live in their own files).
+
+Uuid:
+  type: string
+  format: uuid
+  description: UUIDv7. No sequential ids are ever exposed (API Contract §1).
+
+# §4 RFC 7807 envelope. `code` is the stable contract; the HTTP status is not.
+ProblemDetails:
+  type: object
+  required: [type, title, status, code, trace_id]
+  properties:
+    type:
+      type: string
+      format: uri
+      description: '`https://docs.kinderflow.app/errors/{code}`.'
+    title:
+      type: string
+    status:
+      type: integer
+    code:
+      type: string
+      description: A code from the `@kf/contracts` error catalog (§4).
+    detail:
+      type: string
+      description: Localized via `Accept-Language`. Never contains internals or a stack trace.
+    errors:
+      type: array
+      items:
+        $ref: '#/ProblemDetailItem'
+    trace_id:
+      type: string
+      description: Echoes `X-Request-Id`; always present.
+  additionalProperties: false
+
+ProblemDetailItem:
+  type: object
+  required: [pointer, code, message]
+  properties:
+    pointer:
+      type: string
+      description: JSON Pointer to the offending field.
+    code:
+      type: string
+    message:
+      type: string
+  additionalProperties: false
+
+# §1 cursor pagination. `next_cursor` is null on the last page.
+PaginatedMeta:
+  type: object
+  required: [limit, next_cursor]
+  properties:
+    limit:
+      type: integer
+      minimum: 1
+      maximum: 100
+    next_cursor:
+      type: [string, 'null']
+      description: Opaque signed token; null on the last page.
+  additionalProperties: false
+
+# §1 money. Integer minor units — no floats anywhere in the money path.
+Money:
+  type: object
+  required: [amount_minor, currency]
+  properties:
+    amount_minor:
+      type: integer
+      description: Minor units (piastres for EGP). Never a decimal.
+    currency:
+      type: string
+      minLength: 3
+      maxLength: 3
+      description: ISO 4217. EGP at MVP; the value object is multi-currency ready.
+  additionalProperties: false
+
+# §1 localization. Both languages are always returned, never one.
+LocalizedText:
+  type: object
+  required: [ar, en]
+  properties:
+    ar:
+      type: string
+    en:
+      type: string
+  additionalProperties: false
