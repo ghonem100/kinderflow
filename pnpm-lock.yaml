@@ -44,6 +44,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@kf/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@prisma/adapter-pg':
         specifier: 7.9.1
         version: 7.9.1

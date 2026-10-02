@@ -8,11 +8,12 @@
  * traces to a document line.
  *
  * ---------------------------------------------------------------------------
- * THREE ENUMS SHIP WITH NO MEMBERS, ON PURPOSE.
+ * TWO ENUMS SHIP WITH NO MEMBERS, ON PURPOSE.
  *
- * `SyncStatus`, `NotificationChannel` and `PlanCode` have no usable member set
- * in any approved document. Inventing one here is the worst available option: KF-S0-API-003 creates real PostgreSQL enums from this file
- * (its Testing Requirements assert parity against it), and a wrong member set
+ * `SyncStatus` and `NotificationChannel` have no usable member set in any
+ * approved document. Inventing one here is the worst available option:
+ * KF-S0-API-003 creates real PostgreSQL enums from this file (its Testing
+ * Requirements assert parity against it), and a wrong member set
  * becomes an expand-contract migration — Part 8's own words — rather than an
  * edit. Each is registered as a documentation gap under DISC-017.
  *
@@ -151,7 +152,7 @@ export const NOTIFICATION_STATUS = ['PENDING', 'SENT', 'DELIVERED', 'FAILED'] as
 export type NotificationStatus = (typeof NOTIFICATION_STATUS)[number];
 
 // ---------------------------------------------------------------------------
-// The three with no approved member set. See the header. DISC-017.
+// The two with no approved member set. See the header. DISC-017.
 // ---------------------------------------------------------------------------
 
 /**
@@ -191,11 +192,15 @@ export const CONSENT_TYPE = ['PHOTO_INTERNAL', 'PHOTO_GROUP', 'DATA_PROCESSING']
 export type ConsentType = (typeof CONSENT_TYPE)[number];
 
 /**
- * PENDING — DISC-017. `subscription_plans` unique(code) (Domain Part 3 row 4),
- * "3 plans (D2)". The count is approved; the three codes are named nowhere.
- * KF-S0-API-003's tier-1 seed inserts these rows, so it needs the answer.
+ * Subscription plan codes. BRD D2 fixes "exactly three plans"; the three codes
+ * were named by the founder on 2026-09-06, closing that third of DISC-017.
+ *
+ * The codes are capacity tiers, which is what D2 makes them — pricing is
+ * capacity-based. Prices and per-plan limits remain open (F1, DISC-006) and the
+ * tier-1 seed carries them as `TODO-F1`; a plan row exists and its commercial
+ * terms do not, which is the correct shape while F1 is unanswered.
  */
-export const PLAN_CODE = [] as const;
+export const PLAN_CODE = ['SMALL', 'MEDIUM', 'LARGE'] as const;
 export type PlanCode = (typeof PLAN_CODE)[number];
 
 // ---------------------------------------------------------------------------

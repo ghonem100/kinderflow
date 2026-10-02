@@ -153,8 +153,9 @@ Severity scale: **P0** blocks Sprint 0 · **P1** must resolve within Sprint 0–
 | Approved design | The file header says "GENERATED … do not edit". A generated file with hand-written prose in it is neither generated nor authored |
 | Impact | Low today: nothing can run `--check` because `schema.prisma` does not exist, and `KF-S0-API-003` regenerates the manifest as part of its own work, which resolves the drift by overwriting it. Two real costs remain — `KF-S0-CI-001` wiring `generate.mjs --check` before `API-003` lands would get a STALE failure with no way to fix it, and the "EMPTY ON PURPOSE" rationale (which is genuinely useful) is destroyed on first regeneration with no home to move to |
 | Recommended resolution | In `KF-S0-API-003`, when the manifest is first regenerated: let the generator own the file completely, and move the "EMPTY ON PURPOSE" rationale into `tooling/tenancy-manifest/generate.mjs` as a comment where it will survive. Do **not** teach the generator to preserve hand-written blocks — that reintroduces the same ambiguity |
+| Resolution (2026-10-02, `KF-S0-API-003`) | **Closed exactly as recommended.** The manifest is regenerated from `schema.prisma` and is byte-for-byte what the generator emits; `generate.mjs --check` passes and a test asserts it. The two notes worth keeping — why the spike's models were not merged, and that `KF-S0-CI-001` must wire `--check` — now live in the generator's header. One thing the entry did not anticipate: Prettier would have rewritten the generated file and made `--check` fail on **formatting** rather than drift, and `lint-staged` runs `prettier --write` on every staged code file. Two guards were added — the generator emits the collapsed `new Set([])` Prettier would produce, and the file is listed in `.prettierignore` |
 | ADR required | No — housekeeping within an approved design |
-| Priority | **P3** |
+| Priority | **Resolved** (was P3) |
 
 ## DISC-013 — `KF-S0-API-003` depends on `KF-S0-CONTRACT-001`, and neither its dependency line nor the critical path says so
 
@@ -252,6 +253,79 @@ Severity scale: **P0** blocks Sprint 0 · **P1** must resolve within Sprint 0–
 | ADR required | No |
 | Priority | **P2** — before `KF-S1-IAM-*` implements refresh rotation |
 
+
+## DISC-021 — M-000 cannot be a Prisma migration; it is provisioning
+
+| Field | Content |
+|---|---|
+| Document | Blueprint §4 M-000 row and `KF-S0-API-003` Implementation Requirement 1, vs. `infrastructure/compose/postgres/init/01-init-kinderflow.sh`, `infrastructure/compose/dev.yml` and ADR-008 |
+| Current implementation | **Resolved in code.** The extensions, roles, grants and the UUIDv7 generator live in `infrastructure/postgres/bootstrap.sql`, run as a superuser by `bootstrap.sh`. The Prisma migration chain starts at **M-001** |
+| Approved design | Requirement 1 asks for extensions and roles in a migration. Three independent blockers, any one decisive: (1) `kf_migrator` is created `NOCREATEROLE` and migrations run as `kf_migrator`, so `CREATE ROLE` is refused; (2) `pg_stat_statements` needs superuser **and** `shared_preload_libraries`, a server setting requiring a restart — `dev.yml` already carries it on the `postgres` command with the comment "must be preloaded or `CREATE EXTENSION` fails"; (3) the compose init script already does all of it, idempotently, as superuser |
+| Impact | The task could not be executed as written. The alternative — granting `kf_migrator` `CREATEROLE` and superuser — would dismantle the least-privilege model that ADR-008 and Sprint 0 Guide §2.1 make load-bearing: it is what makes RLS a real backstop in dev rather than a production-only claim, and the TR-10 spike's evidence depends on it |
+| Resolution (founder, 2026-09-06) | **M-000 is provisioning.** One committed, idempotent, pure-SQL file with two callers — the compose init hook in dev, and an operator or Coolify pre-deploy job in staging/production, which `KF-S0-OPS-004` wires. There is deliberately no second copy of the statements for production to drift from. Amend Blueprint §4's M-000 row and Requirement 1 to say "provisioning script, run once per environment as a superuser"; `infrastructure/compose/README.md` has already been corrected in place because it gave a now-wrong instruction (write a guarded `CREATE ROLE` into migration M-000) that a reader would have followed |
+| ADR required | **No**, and the question was asked rather than skipped. "Is provisioning part of the migration chain?" is answered by the role model, not by a new architectural choice: ADR-008 already fixes least privilege, and that fixes this |
+| Priority | **Resolved** (was P0 — blocked the task) |
+
+## DISC-022 — Three approved documents give three different role sets
+
+| Field | Content |
+|---|---|
+| Document | RBAC §2.1 and §3 vs. SAD §5 vs. Domain Model Part 3 row 11 and `KF-S0-API-003` Requirement 4 |
+| Current implementation | **Resolved in code.** `roles` is seeded with eight codes in the RBAC §2.1 spelling: `SUPER_ADMIN`, `SYSTEM`, `OWNER`, `BRANCH_MANAGER`, `ACCOUNTANT`, `RECEPTIONIST`, `TEACHER`, `PARENT` |
+| Approved design | **Three-way contradiction.** RBAC §2.1 names **eight** roles in SCREAMING_SNAKE. RBAC §3's matrix has **eight** columns but abbreviates one header to `BRANCH_MGR`. SAD §5 names **seven** in PascalCase and calls the platform role `PlatformAdmin`, omitting `SYSTEM` entirely. Domain Part 3 row 11 says "7 roles (SAD §5.2)" and Requirement 4 says "7 roles" |
+| Impact | `roles.code` is unique and seeded, and every `role_permissions` row keys off it. Getting the count or the spelling wrong is a data migration later, not an edit — and the guard pipeline reads both |
+| Resolution (founder, 2026-09-06) | **Eight roles, RBAC §2.1 spelling.** The deciding evidence is that RBAC §3's `SYSTEM` column carries real grants — "C (day-close job) R", "C (cycle job) U (overdue)", "C (writer)" — and §2.1 says SYSTEM's "permissions limited to its queue's purpose". Without a `SYSTEM` row those grants have nowhere to live and background-job authorization becomes code-only. SAD §5's list is the source of the "7", but SAD §5 explicitly defers — "Full permission matrix is a Phase 5 deliverable" — and its `PlatformAdmin` naming is already superseded by RBAC. Amend Domain Part 3 row 11, Requirement 4, and SAD §5's role list; `BRANCH_MGR` stays a §3 table-width abbreviation and should be annotated as such |
+| ADR required | No |
+| Priority | **Resolved** (was P0 — blocked the seed) |
+
+## DISC-023 — RBAC §3 cells that decode to no permission code, and §2 codes with no §3 row
+
+| Field | Content |
+|---|---|
+| Document | RBAC §3 matrix vs. API Contract §2 / `@kf/contracts/permissions` |
+| Current implementation | None of these is seeded. All 37 are listed in `apps/api/prisma/seed-data/ROLE_PERMISSIONS_DERIVATION.md` with the role, the cell and the code each would need |
+| Approved design | Two directions, both gaps. **(a) Matrix letters with no endpoint.** Mostly `SYSTEM` job-creates that no API performs: `report:create` (the day-close/draft trigger), `audit:create` (the audit writer), `notification:create` (dispatch), `analytics:create`/`analytics:update` (the projection job), `subscription:update` (billing jobs), `tenant-export:create` (the executor). Each is a real capability a background job needs and no §2 endpoint exposes, so there is no code to grant. **(b) Contract codes with no matrix row.** `role:read` exists because §2.4 `GET /roles` exists, and RBAC §3 has **no row for roles at all** — so the endpoint that lists the roles an OWNER assigns is callable by nobody. Separately, §2.17's platform-lifecycle and health codes (`platform:tenant:*`, `platform:read`) have no §3 row either; they are seeded to `SUPER_ADMIN` from §2.17 directly, listed in the derivation table under "Platform plane operations" so the gap stays visible |
+| Impact | (a) Every background job that writes will need an authorization story. The SYSTEM role now exists (DISC-022) and holds 27 codes, but not these — so the first job to need one is blocked until the gap closes. (b) `role:read` is a live endpoint nobody can call; the §2↔§3 divergence API Contract §2's closing line calls "a spec bug" |
+| Recommended resolution | One sweep of the derivation table's "Cells that decoded to no code" section. Per row: add the endpoint to §2, add a job-permission convention for SYSTEM, or strike the letter from §3. `role:read` is the urgent one — either add a Roles row to §3 granting it to OWNER and BRANCH_MANAGER, or confirm it is an unauthenticated reference read |
+| ADR required | No — though a convention for job-only permissions may deserve one if the answer is "SYSTEM needs codes no endpoint has" |
+| Priority | **P2** — `role:read` before `KF-S1-IAM-*`; the SYSTEM gaps before the first background job in S3 |
+
+## DISC-024 — Blueprint §4 claims the linter enforces something it no longer enforces
+
+| Field | Content |
+|---|---|
+| Document | Blueprint §4, "Ordering rules" row |
+| Current implementation | M-001 follows the convention: each table's RLS ships in the same migration as the table |
+| Approved design | §4 reads: "RLS policies ship **in the same migration** as their table (linter-enforced, TR-01)". After the founder-approved F-3 decision in `KF-S0-CI-003`, the migration linter resolves obligations across the **whole corpus**, precisely so a legitimate "enable RLS on an existing table" migration is not blocked. It will therefore not fail a migration that creates a table and secures it in a later file |
+| Impact | Low but corrosive: the sentence is now false and a reader will trust it, then be surprised when the gate lets a split migration through. The convention itself is still right and still followed |
+| Recommended resolution | Amend the §4 sentence to "RLS policies ship in the same migration as their table (convention; the linter enforces that every table is secured **somewhere** in the corpus — F-3)". Do **not** change the linter to make the old sentence true: that reopens the reason F-3 was decided |
+| ADR required | No |
+| Priority | **P3** |
+
+## DISC-025 — `feature_flags` has no write policy, and the platform console will need one
+
+| Field | Content |
+|---|---|
+| Document | API Contract §2.17 (`platform:flags:*` CRUD) vs. M-001's hand-written RLS block |
+| Current implementation | `feature_flags` carries a GLOBAL_READ read policy expressing both tiers of Domain Part 6.2 — a NULL `tenant_id` row is the global default, a non-NULL one is a tenant override. There is **no write policy**, so only the owner (`kf_migrator`) can write, which is what "writes platform-only" means today |
+| Approved design | §2.17 gives the platform console full CRUD over feature flags, and that runs as `kf_api`. A write policy gated on the platform predicate is required for those endpoints to work |
+| Impact | None yet — the platform console does not exist. It would become a blocker for whichever task implements `platform:flags:*` |
+| Recommended resolution | Add the write policy in the migration that first needs it, gated on the platform predicate Domain Part 6.1 describes for `TENANT_OR_PLATFORM` (`app.break_glass` / platform role). It is deliberately not added now because no platform-plane table exists to gate on — `break_glass_grants` is M-007 — and a write policy with nothing to check is indistinguishable from an open one |
+| ADR required | No |
+| Priority | **P2** — before the platform console's flag endpoints |
+
+## DISC-026 — "Global feature flags" are required by the seed and named by no document
+
+| Field | Content |
+|---|---|
+| Document | `KF-S0-API-003` Requirement 4 ("global feature flags") vs. every approved document |
+| Current implementation | The tier-1 seed inserts **no** feature flags, and says so in its output. The table is created and empty |
+| Approved design | Requirement 4 lists global feature flags among the tier-1 seed data. Domain Part 3 row 6 gives the table its shape — `unique(key, tenant_id)`, nullable tenant for the global row — and no document names a single flag key. Blueprint §5 mentions a feature flag for AI A/B testing without naming it |
+| Impact | Low, and deliberately so. A flag is reference data: inventing `ai_drafting_enabled` here would put a switch in production that no specification authorises, and something would come to depend on it. An empty `feature_flags` table is meaningful and correct — no flags are defined yet — in a way an empty `roles` table would not be |
+| Recommended resolution | Name the MVP's flags, or confirm there are none at MVP and strike the clause from Requirement 4. The AI A/B flag from Blueprint §5 is the only candidate visible in an approved document, and the AI task can seed it when it exists |
+| ADR required | No |
+| Priority | **P3** |
+
 ---
 
 ## Summary
@@ -259,8 +333,9 @@ Severity scale: **P0** blocks Sprint 0 · **P1** must resolve within Sprint 0–
 | Priority | Count | IDs |
 |---|---|---|
 | P0 | 3 | DISC-001, DISC-003, DISC-005 |
-| P1 | 6 | DISC-002, DISC-006 (F4/F2), DISC-007 (UXD-02/03), DISC-008, DISC-009, DISC-013, DISC-017 |
-| P2 | 5 | DISC-014, DISC-015, DISC-016, DISC-019, DISC-020 (plus items contained within DISC-006/007) |
-| P3 | 6 | DISC-004, DISC-010, DISC-006 (F3), DISC-012, DISC-018 |
+| P1 | 6 | DISC-002, DISC-006 (F4/F2), DISC-007 (UXD-02/03), DISC-008, DISC-009, DISC-013, DISC-017 (partly closed — `PlanCode` answered 2026-09-06) |
+| P2 | 8 | DISC-014, DISC-015, DISC-016, DISC-019, DISC-020, DISC-023, DISC-025 (plus items contained within DISC-006/007) |
+| P3 | 9 | DISC-004, DISC-010, DISC-006 (F3), DISC-018, DISC-024, DISC-026 |
+| Resolved | 4 | DISC-011, DISC-012 (closed by `KF-S0-API-003`'s manifest regeneration), DISC-021, DISC-022 |
 
 **No discrepancy requires reversing an approved architectural decision.** All three P0 items are resolved by *executing* Sprint 0 as already approved. The genuine risk concentration is DISC-003 (TR-10) — it is the only entry where the answer is unknown rather than merely unexecuted.

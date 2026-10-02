@@ -6,6 +6,14 @@
 #
 # The generator owns the formatting of what it emits (KF-S0-CONTRACT-001).
 packages/contracts/src/generated/
+apps/api/src/shared-kernel/tenancy/model-manifest.generated.ts
+apps/api/src/generated/
+apps/api/prisma/seed-data/ROLE_PERMISSIONS_DERIVATION.md
+
+# Prisma-generated DDL. The migration is authored once and then immutable —
+# reformatting an applied migration would change its checksum and make Prisma
+# refuse to deploy.
+apps/api/prisma/migrations/
 
 # Build output and dependencies.
 **/dist/

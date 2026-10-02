@@ -1,0 +1,331 @@
+// KinderFlow — Prisma schema.
+//
+// KF-S0-API-003 establishes this file with M-001: the Domain Part 8 enums and
+// the six global reference tables. M-002…M-007 extend it (Blueprint §4).
+//
+// Conventions are Domain Part 8 and Part 5.4, not preference:
+//   · PascalCase singular models ↔ `@@map` snake_case PLURAL tables
+//   · camelCase fields ↔ `@map` snake_case columns
+//   · enum types named for the column that uses them (`invoice_status`), which
+//     for every Part 8 enum is snake_case of its Part 8 name
+//   · `created_at` / `updated_at` TIMESTAMPTZ on every table
+//   · UUIDv7 primary keys, generated app-side with a DB default as fallback
+//
+// WHAT IS NOT HERE, AND WHY:
+//
+//   · No M-000. Extensions and roles are provisioning, not migration —
+//     `kf_migrator` is NOCREATEROLE and `pg_stat_statements` needs a preloaded
+//     library, so neither can come from a migration run as `kf_migrator`. See
+//     `infrastructure/postgres/bootstrap.sql` and DISC-021.
+//
+//   · No `SyncStatus`, no `NotificationChannel`. Both are Part 8 enums whose
+//     member sets no approved document defines (DISC-017), and PostgreSQL
+//     cannot usefully hold a valueless enum. Neither has a table before M-005,
+//     so nothing here is blocked; whichever migration first needs one creates
+//     it once the gap is answered. `@kf/contracts` carries them as `never` so a
+//     use fails to compile rather than guessing a member.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// Prisma 7 removed `url` from the datasource block: a driver adapter is
+// mandatory and the pool is the JS `pg` pool (ADR-010 finding 1, which notes
+// ADR-002 predates this). The CLI reads its connection from `prisma.config.ts`.
+// The runtime client is KF-S0-API-001's to configure; this task configures only
+// what migrate and seed need.
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums — Domain Part 8. Members and their document citations live in
+// `@kf/contracts/enums`; the parity test asserts these two agree.
+//
+// All fourteen are created by M-001 even though none of M-001's own tables uses
+// one, because Blueprint §4's M-001 row says "Enums (all, Domain Part 8)".
+// M-002…M-007 are the consumers.
+// ---------------------------------------------------------------------------
+
+/// Organization lifecycle. Domain §2.1; SAD §4.3.
+enum LifecycleStatus {
+  PROVISIONING
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  PENDING_DELETION
+  DELETED
+
+  @@map("lifecycle_status")
+}
+
+/// Child lifecycle. Domain §2.3; retention per BR-20 / D8.
+enum ChildStatus {
+  ADMITTED
+  ENROLLED
+  PAUSED
+  WITHDRAWN
+  ARCHIVED_RETENTION
+  PURGED
+
+  @@map("child_status")
+}
+
+/// Invoice lifecycle. Domain §2.7.
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CREDIT_ADJUSTED
+  CLOSED
+
+  @@map("invoice_status")
+}
+
+/// API Contract §3.2 PaymentCreateRequest.
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHEQUE
+  OTHER
+
+  @@map("payment_method")
+}
+
+/// Domain §2.5 — the ActivityEntry aggregate's type list. Seven members; the
+/// API Contract §2.7 list omits MEDICATION_ADMIN (DISC-019).
+enum ActivityType {
+  MEAL
+  NAP
+  DIAPER
+  MOOD
+  LEARNING
+  NOTE
+  MEDICATION_ADMIN
+
+  @@map("activity_type")
+}
+
+/// Domain §2.6 — the two branches of the BR-14 severity workflow.
+enum IncidentSeverity {
+  MINOR
+  SERIOUS
+
+  @@map("incident_severity")
+}
+
+/// Incident lifecycle. Domain §2.6.
+enum IncidentStatus {
+  FILED
+  UNDER_REVIEW
+  APPROVED
+  NOTIFIED
+  ACKNOWLEDGED
+  CLOSED
+
+  @@map("incident_status")
+}
+
+/// DailyReport lifecycle. Domain §2.5; BR-13 gate.
+enum ReportStatus {
+  EMPTY
+  DRAFTING
+  PENDING_REVIEW
+  APPROVED
+  PUBLISHED
+
+  @@map("report_status")
+}
+
+/// API Contract §3.2 AttendanceEventCreateRequest.
+enum AttendanceDirection {
+  CHECK_IN
+  CHECK_OUT
+
+  @@map("attendance_direction")
+}
+
+/// Notification dispatch lifecycle. Domain §2.9. DLQ is a destination for
+/// FAILED rows, not a status a row holds.
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+
+  @@map("notification_status")
+}
+
+/// Domain §1.4 value objects — `ConsentSet {photo_internal, photo_group,
+/// data_processing}`. BR-19 explains why the two photo facets are separate.
+enum ConsentType {
+  PHOTO_INTERNAL
+  PHOTO_GROUP
+  DATA_PROCESSING
+
+  @@map("consent_type")
+}
+
+/// Staff employment lifecycle. Domain §2.8.
+enum EmploymentStatus {
+  ONBOARDED
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+
+  @@map("employment_status")
+}
+
+/// Media pipeline lifecycle. Domain §2.10. Part 8 spells this "Media Status",
+/// with a space, which is not a valid identifier anywhere (DISC-018).
+enum MediaStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  QUARANTINED
+  PURGED
+
+  @@map("media_status")
+}
+
+/// Subscription capacity tiers. BRD D2 fixes exactly three; the codes were
+/// named by the founder on 2026-09-06.
+enum PlanCode {
+  SMALL
+  MEDIUM
+  LARGE
+
+  @@map("plan_code")
+}
+
+// ---------------------------------------------------------------------------
+// M-001 — global reference tables. Domain Part 3 rows 4, 11, 12, 13, 6, 49.
+//
+// Every one is RLS class GLOBAL_READ (Domain Part 6.1): readable by all
+// authenticated roles, writes platform-only. None carries a `tenant_id` except
+// `feature_flags`, whose nullable column is the two-tier override mechanism of
+// Part 6.2. Policies are in the hand-written block of the migration.
+// ---------------------------------------------------------------------------
+
+/// Domain Part 3 row 4 — global reference, AU, OL. Exactly three rows (D2).
+///
+/// No price column: F1 has not set price points (DISC-006), and adding one
+/// later is additive. No display name either — a plan's ar/en label belongs in
+/// `@kf/i18n` keyed by `code`, not in a table that would then need its own
+/// LocalizedText columns and a translation workflow.
+/// @kf-tenancy global
+model SubscriptionPlan {
+  id        String   @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  code      PlanCode @unique
+  /// Per-plan capacity and quota limits. Seeded with TODO-F1 placeholders
+  /// (DISC-006) — the plan exists, its commercial terms do not yet.
+  limits    Json     @db.JsonB
+  isActive  Boolean  @default(true) @map("is_active")
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("subscription_plans")
+}
+
+/// Domain Part 3 row 11 — reference (seeded), AU.
+///
+/// Eight rows, not seven. RBAC §2.1 names eight roles and the §3 matrix has
+/// eight columns; the SYSTEM column carries real grants, so without a SYSTEM
+/// row background-job authorization has nowhere to live. Founder decision
+/// 2026-09-06; the "7 roles" in Domain row 11 and SAD §5 is DISC-022.
+/// @kf-tenancy global
+model Role {
+  id              String           @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  /// RBAC §2.1 spelling — BRANCH_MANAGER, not the §3 column header BRANCH_MGR.
+  code            String           @unique @db.VarChar(64)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+/// Domain Part 3 row 12 — reference (seeded). `resource:action` pairs.
+///
+/// Mirrors `@kf/contracts/permissions` exactly and in both directions (AC3).
+/// The 20 DISC-015 residue codes are NOT here: they have no API Contract §2
+/// endpoint, so they are not in the contract map either.
+/// @kf-tenancy global
+model Permission {
+  id              String           @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  code            String           @unique @db.VarChar(128)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+/// Domain Part 3 row 13 — reference, AU.
+///
+/// Role × permission and nothing else. Scope (ᵀ ᴮ ᶜ ᴼ) lives on `user_roles`
+/// (row 14), which M-003 creates — RBAC §2.3 makes scope a separate pipeline
+/// stage from the permission check, and folding it in here would double the
+/// table and make the guard's contract unreadable.
+/// @kf-tenancy global
+model RolePermission {
+  id           String     @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  roleId       String     @map("role_id") @db.Uuid
+  permissionId String     @map("permission_id") @db.Uuid
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+/// Domain Part 3 row 6 — global + tenant override, AU. `tenant_id` nullable:
+/// a NULL row is the global default, a non-NULL row is one tenant's override
+/// (Part 6.2 "two-tier resolution").
+///
+/// Class is GLOBAL_READ, and the policy expresses both tiers in one predicate
+/// rather than waiting for a second class. See the migration's hand-written
+/// block.
+/// @kf-tenancy global
+model FeatureFlag {
+  id        String   @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  key       String   @db.VarChar(128)
+  /// NULL = the global row. Non-NULL = that tenant's override.
+  tenantId  String?  @map("tenant_id") @db.Uuid
+  isEnabled Boolean  @default(false) @map("is_enabled")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([key, tenantId])
+  @@map("feature_flags")
+}
+
+/// Domain Part 3 row 49 — AI reference, AU. Registered for audit; content hash.
+///
+/// Blueprint §5: templates live in code (`apps/api/src/modules/ai/prompts/`)
+/// and register themselves here at boot. The seed inserts the placeholder row
+/// for the one template the MVP has, so `report_drafts` (M-005) has a valid FK
+/// target before the AI module exists.
+/// @kf-tenancy global
+model PromptVersion {
+  id          String   @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  /// Template identity, e.g. `daily-report` (Blueprint §5 `daily-report@1.x.y`).
+  promptId    String   @map("prompt_id") @db.VarChar(64)
+  /// Semver of the template.
+  version     String   @db.VarChar(32)
+  /// SHA-256 of the rendered template, so a silent edit is detectable.
+  contentHash String   @map("content_hash") @db.VarChar(64)
+  isActive    Boolean  @default(false) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([promptId, version])
+  @@map("prompt_versions")
+}

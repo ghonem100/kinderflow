@@ -4,16 +4,6 @@
 //
 // Consumed by the Prisma tenancy extension AND the migration linter, so the
 // runtime guard and the CI gate always agree on what must carry a policy.
-//
-// EMPTY ON PURPOSE. There is no Prisma schema on main yet — KF-S0-API-003 adds
-// it, and regenerating this file is part of that task. The spike's manifest
-// (SpikeChild, SpikeAttendanceEvent) is deliberately NOT merged: it describes
-// throwaway tables, and a manifest naming models that do not exist would be a
-// lie the extension would act on.
-//
-// While this set is empty the extension scopes nothing, which is correct: there
-// is nothing to scope. KF-S0-CI-001 must wire `generate.mjs --check` so a model
-// added without regenerating fails the build rather than shipping unprotected.
 
 /** Prisma field name carrying the tenant discriminator. */
 export const TENANT_FIELD = 'tenantId' as const;
@@ -22,7 +12,14 @@ export const TENANT_FIELD = 'tenantId' as const;
 export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set([]);
 
 /** Reference data. No tenant column; RLS class GLOBAL_READ or SELF_TENANT_ROOT. */
-export const GLOBAL_MODELS: ReadonlySet<string> = new Set([]);
+export const GLOBAL_MODELS: ReadonlySet<string> = new Set([
+  'FeatureFlag',
+  'Permission',
+  'PromptVersion',
+  'Role',
+  'RolePermission',
+  'SubscriptionPlan',
+]);
 
 /**
  * The same two sets as PHYSICAL TABLE names, from each model's `@@map`.
@@ -35,4 +32,11 @@ export const GLOBAL_MODELS: ReadonlySet<string> = new Set([]);
 export const TENANT_SCOPED_TABLES: ReadonlySet<string> = new Set([]);
 
 /** Reference-data tables. Note: SELF_TENANT_ROOT belongs here — ADR-010 L-6. */
-export const GLOBAL_TABLES: ReadonlySet<string> = new Set([]);
+export const GLOBAL_TABLES: ReadonlySet<string> = new Set([
+  'feature_flags',
+  'permissions',
+  'prompt_versions',
+  'role_permissions',
+  'roles',
+  'subscription_plans',
+]);

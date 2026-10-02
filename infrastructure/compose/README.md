@@ -38,19 +38,22 @@ Dev mirrors production from day one (Sprint 0 Guide §2.1). The init script crea
 
 This matters because ADR-008 makes PostgreSQL RLS the engine-level backstop. If local development ran as a superuser, RLS would be inert locally and every isolation test would be theatre — passing locally and proving nothing. Connecting as `kf_api` means a policy gap fails on your machine, not in staging.
 
-> ### ⚠️ Migration M-000 must be idempotent
+> ### ⚠️ M-000 is provisioning, not a migration
 >
-> These roles already exist on every developer machine, created by the init script before any migration runs. When **KF-S0-API-003** authors migration M-000 it must therefore guard every `CREATE ROLE` and `CREATE EXTENSION`:
+> The extensions and roles are created by `infrastructure/postgres/bootstrap.sql`, run as a superuser — **not** by a Prisma migration. The Prisma chain starts at **M-001**. Three independent reasons, any one of which is decisive (KF-S0-API-003, founder decision 2026-09-06, DISC-021):
 >
-> ```sql
-> DO $$ BEGIN
->   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'kf_api') THEN
->     CREATE ROLE kf_api LOGIN NOSUPERUSER NOBYPASSRLS;
->   END IF;
-> END $$;
-> ```
+> 1. `kf_migrator` is `NOCREATEROLE`, and migrations run as `kf_migrator`. A `CREATE ROLE` in a migration is refused. Granting it `CREATEROLE` would dismantle the very trust model described above.
+> 2. `pg_stat_statements` needs superuser **and** `shared_preload_libraries`, a server setting requiring a restart. No migration can supply either — which is why it is on the `postgres` service `command` in `dev.yml`.
+> 3. Extensions and roles are database furniture. They exist before the first table and outlive every migration.
 >
-> A bare `CREATE ROLE kf_api;` will fail with `role already exists` on first run against any local stack. (Decision D-18.)
+> Every statement in `bootstrap.sql` is idempotent, so re-running it is safe and is the supported way to repair drift — a role that somehow acquired `BYPASSRLS`, for instance, has it taken back on the next run.
+>
+> | Environment          | How it runs                                                                                               |
+> | -------------------- | --------------------------------------------------------------------------------------------------------- |
+> | dev                  | Automatically, by this init hook on an empty volume                                                       |
+> | staging / production | `infrastructure/postgres/bootstrap.sh` — an operator, or the Coolify pre-deploy job `KF-S0-OPS-004` wires |
+>
+> Earlier revisions of this README said migration M-000 "must be idempotent" and showed a guarded `CREATE ROLE` to put in it. That instruction was wrong and is withdrawn: no migration should contain `CREATE ROLE` at all. (Supersedes decision D-18's framing; the idempotency requirement itself survives, it just applies to the bootstrap script.)
 
 The init script runs **once**, on first initialization of an empty data volume. Editing it has no effect on an existing stack — use `scripts/dev-setup.sh --reset` to re-run it.
 

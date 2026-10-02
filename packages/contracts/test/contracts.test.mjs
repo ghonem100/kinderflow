@@ -403,11 +403,9 @@ test('all sixteen Part 8 enums are present', () => {
 });
 
 test('enums with no approved member set are empty and declared as such', () => {
-  assert.deepEqual([...ENUMS_PENDING_DEFINITION].sort(), [
-    'NotificationChannel',
-    'PlanCode',
-    'SyncStatus',
-  ]);
+  // PlanCode left this list on 2026-09-06 (founder: SMALL/MEDIUM/LARGE), which
+  // is what unblocked KF-S0-API-003's subscription_plans seed.
+  assert.deepEqual([...ENUMS_PENDING_DEFINITION].sort(), ['NotificationChannel', 'SyncStatus']);
   for (const name of ENUMS_PENDING_DEFINITION) {
     assert.equal(ENUMS[name].length, 0, `${name} must stay empty until DISC-017 is answered`);
   }
@@ -421,6 +419,7 @@ test('the enums that could be established carry their members', () => {
   assert.deepEqual([...ENUMS.AttendanceDirection], ['CHECK_IN', 'CHECK_OUT']);
   assert.deepEqual([...ENUMS.ConsentType], ['PHOTO_INTERNAL', 'PHOTO_GROUP', 'DATA_PROCESSING']);
   assert.equal(ENUMS.InvoiceStatus.length, 7);
+  assert.deepEqual([...ENUMS.PlanCode], ['SMALL', 'MEDIUM', 'LARGE']);
   assert.equal(
     ENUMS.NotificationStatus.includes('DLQ'),
     false,

@@ -18,5 +18,10 @@
     // The Prisma 7 client is generated TypeScript, not hand-written source.
     "skipLibCheck": true
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+
+  // Composite project references (KF-S0-INFRA-004 constraint 9). @kf/api reads
+  // the permission and enum vocabulary from @kf/contracts — the tier-1 seed
+  // imports the map rather than re-deriving it (KF-S0-API-003 requirement 4).
+  "references": [{ "path": "../../packages/contracts" }]
 }
