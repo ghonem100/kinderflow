@@ -332,10 +332,16 @@ Severity scale: **P0** blocks Sprint 0 · **P1** must resolve within Sprint 0–
 
 | Priority | Count | IDs |
 |---|---|---|
-| P0 | 3 | DISC-001, DISC-003, DISC-005 |
+| P0 | 0 | — (all three original P0 entries are closed: DISC-001 by the monorepo tree, DISC-003 by ADR-010 merged and ratified, DISC-005 by `git init`. Counts corrected 2026-11-06.) |
 | P1 | 6 | DISC-002, DISC-006 (F4/F2), DISC-007 (UXD-02/03), DISC-008, DISC-009, DISC-013, DISC-017 (partly closed — `PlanCode` answered 2026-09-06) |
 | P2 | 8 | DISC-014, DISC-015, DISC-016, DISC-019, DISC-020, DISC-023, DISC-025 (plus items contained within DISC-006/007) |
 | P3 | 9 | DISC-004, DISC-010, DISC-006 (F3), DISC-018, DISC-024, DISC-026 |
 | Resolved | 4 | DISC-011, DISC-012 (closed by `KF-S0-API-003`'s manifest regeneration), DISC-021, DISC-022 |
 
-**No discrepancy requires reversing an approved architectural decision.** All three P0 items are resolved by *executing* Sprint 0 as already approved. The genuine risk concentration is DISC-003 (TR-10) — it is the only entry where the answer is unknown rather than merely unexecuted.
+**No discrepancy requires reversing an approved architectural decision.**
+
+> **Summary refreshed 2026-11-06 (planner).** The paragraph that stood here said the risk concentration was DISC-003 (TR-10) because "it is the only entry where the answer is unknown". That was true when this register was written on 2026-08-10 and is **false now**: TR-10 was answered by `KF-S0-RLS-001` with 26/26 probes and ADR-010 is merged and ratified. Leaving it would have repeated the DISC-002 failure mode — a document a reader trusts while it points at something that no longer exists.
+>
+> **Where the risk actually sits now.** Not in anything unknown; in what is unexecuted. `DISC-009` (external accounts) still blocks `KF-S0-OPS-001`, and OPS-001 in turn blocks `KF-S0-CI-001`, `CI-002` and `CI-004` — four tasks, including every blocking CI gate the architecture relies on, waiting on one external decision. `DISC-002` (the README naming deleted directories) is still open and still P0-escalated because `KF-S0-DOC-001` has not run. Those two, not TR-10, are the live concentration.
+>
+> The P1/P2/P3 counts below include the sub-items contained within DISC-006 and DISC-007, so they exceed the number of ids listed on each row; that is intentional and is noted here rather than "corrected".
