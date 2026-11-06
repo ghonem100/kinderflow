@@ -2,13 +2,13 @@
 
 A multi-tenant SaaS platform for nurseries and daycare centres — built design-first, with the isolation guarantees written, measured and enforced before the features.
 
-> **Stage:** Sprint 0 — foundations. The architecture is decided and documented (10 ADRs), the multi-tenancy model has been proven with a benchmark spike, the API contracts package is in place, and CI gates enforce the design. Feature modules come next. This repository is currently more interesting as engineering than as a product, and the two pieces below are why.
+> **Stage:** Sprint 0 — foundations. The architecture is decided and documented (10 ADRs), the multi-tenancy model has been proven with a benchmark spike, the API contracts package is in place, the database foundation is applied and proved against PostgreSQL, and CI gates enforce the design. The API and web entry points are still scaffolds — no NestJS or Next.js bootstrap yet — so feature modules come next. This repository is currently more interesting as engineering than as a product, and the two pieces below are why.
 
 ---
 
 ## The problem this repo is actually solving
 
-Thousands of small nurseries, one small team, and the data is children's records. Isolation is not a feature — it is the thing that must never fail. Almost every multi-tenant bug is the same bug: *someone added a table and forgot the policy.*
+Thousands of small nurseries, one small team, and the data is children's records. Isolation is not a feature — it is the thing that must never fail. Almost every multi-tenant bug is the same bug: _someone added a table and forgot the policy._
 
 So the first two things built were not screens. They were the two mechanisms that make that bug impossible.
 
@@ -31,11 +31,11 @@ JWT tenant context
 
 Then it was **benchmarked before being accepted** ([ADR-010](./docs/Decisions/ADR-010_RLS_Integration_Pattern.md)). The wrapped path failed the stated performance budget — 56.3% p95 overhead against a ≤15% budget:
 
-| Scenario | Baseline p95 | Wrapped p95 | Overhead |
-|---|---|---|---|
-| Roster read (50 rows) | 8.26 ms | 5.30 ms | −35.9%* |
-| Event insert | 4.76 ms | 7.44 ms | **+56.3%** |
-| Heavier read (all rows) | 2.80 ms | 5.67 ms | +102.1% |
+| Scenario                | Baseline p95 | Wrapped p95 | Overhead   |
+| ----------------------- | ------------ | ----------- | ---------- |
+| Roster read (50 rows)   | 8.26 ms      | 5.30 ms     | −35.9%*    |
+| Event insert            | 4.76 ms      | 7.44 ms     | **+56.3%** |
+| Heavier read (all rows) | 2.80 ms      | 5.67 ms     | +102.1%    |
 
 <sub>*negative because the unwrapped baseline was the unstable one — p95 spread 2.9–76.4 ms across runs.</sub>
 
@@ -66,20 +66,26 @@ Covered by **21 SQL fixtures**, including the adversarial ones (annotation dangl
 
 ```
 apps/
-├── api/              NestJS modular monolith — Prisma, PostgreSQL, Redis, BullMQ
-└── web/              Next.js · TypeScript · Tailwind · shadcn/ui
+├── api/              Prisma schema · M-001 migration · tier-1 seed · tenancy kernel
+│                     (scaffold — the NestJS bootstrap is not written yet)
+└── web/              scaffold — the Next.js bootstrap is not written yet
 packages/
 ├── contracts/        Shared API contracts, schemas, events, permissions (source of truth)
 ├── shared/  i18n/  tokens/  ui/
 tooling/
-└── migration-lint/   RLS annotation gate (see above)
-infrastructure/       Docker · GitHub Actions · Coolify
+├── migration-lint/   RLS annotation gate (see above)
+└── tenancy-manifest/ Generates the model manifest the gate and the runtime both read
+infrastructure/       Docker · GitHub Actions · Coolify · PostgreSQL provisioning
 docs/                 Design-first documentation — see below
 ```
 
-**Documentation is the workflow, not an afterthought.** Every module goes through business analysis → requirements → DB design → API design → permissions → validation → edge cases → testing strategy *before* implementation:
+The stack names below are the decided architecture, not a claim about what runs
+today. `mobile-parent/` and `mobile-teacher/` are reserved for V2; the MVP is
+PWA-first ([ADR-009](./docs/Decisions/ADR-009_PWA_First.md)).
 
-`00_Product_Discovery` · `01_Business_Analysis` · `02_Requirements` · `03_System_Architecture` · `04_Database_Design` · `05_API_Design` · `06_UI_UX` · `07_Roadmap` · `08_AI` · `09_Deployment` · `Decisions` (ADRs)
+**Documentation is the workflow, not an afterthought.** Every module goes through business analysis → requirements → DB design → API design → permissions → validation → edge cases → testing strategy _before_ implementation:
+
+`00_Product_Discovery` · `01_Business_Analysis` · `02_Requirements` · `03_System_Architecture` · `04_Database_Design` · `05_API_Design` · `06_UI_UX` · `07_Roadmap` · `08_AI` · `09_Deployment` · [`09_Execution`](./docs/09_Execution) (sprint tasks, acceptance criteria, discrepancy register) · `Decisions` (ADRs)
 
 **Engineering discipline:** pnpm workspaces + Turborepo · ESLint + Prettier · Husky + lint-staged · commitlint (Conventional Commits) · Changesets · Renovate · ticket-referenced branches (`KF-S0-CI-003`) traceable to the ADR that motivated them.
 
@@ -96,13 +102,25 @@ docs/                 Design-first documentation — see below
 
 ## Running it
 
+Node.js 22 or newer, and the pnpm version pinned in `package.json`.
+
 ```bash
 pnpm install
 pnpm build
+pnpm test                 # unit suites — no services required
 
 # the RLS migration gate
-node tooling/migration-lint/lint.mjs --dir apps/api/prisma/migrations
-node --test tooling/migration-lint/test/
+pnpm lint:migrations      # fails if a tenant table ships without a policy class
+pnpm test:migration-lint  # 21 SQL fixtures, including the adversarial ones
+```
+
+The API's integration suite is the one thing that needs a database. It creates
+its own scratch database, bootstraps it, migrates, seeds twice to prove
+idempotency, and asserts that the API role cannot escape RLS:
+
+```bash
+scripts/dev-setup.sh      # PostgreSQL, Redis, MinIO, Mailpit
+pnpm --filter @kf/api test:integration
 ```
 
 ---
