@@ -203,7 +203,9 @@ test('AC4 — no package defines a competing Prettier config', () => {
       const full = path.join(dir, entry.name);
       const rel = path.relative(repoRoot, full);
       if (entry.isDirectory()) {
-        if (!SKIP_DIRS.has(entry.name)) walk(full);
+        // A nested checkout has its own formatting policy. Its .git marker
+        // can be either a directory or a file (linked worktree).
+        if (!SKIP_DIRS.has(entry.name) && !fs.existsSync(path.join(full, '.git'))) walk(full);
         continue;
       }
       // A standalone config file is a competing config wherever it appears.
