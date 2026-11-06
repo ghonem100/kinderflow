@@ -1,0 +1,70 @@
+# CODEOWNERS — Blueprint §12, KF-S0-OPS-001.
+#
+# Written before the code it governs. Most of these paths are empty or barely
+# populated today; the rule exists now so the first commit into them is already
+# covered rather than the rule arriving after the code it was meant to guard.
+#
+# ---------------------------------------------------------------------------
+# WHAT THIS FILE CAN AND CANNOT DO
+#
+# The specification asks for "1 approval (2 for apps/api/src/modules/{billing,
+# attendance}, shared-kernel/, and any prisma/migrations/** path via
+# CODEOWNERS)". CODEOWNERS cannot express an approval COUNT — it names who owns
+# a path. The count lives in branch protection, and GitHub applies one count to
+# the whole branch, not a higher one for selected paths.
+#
+# So the two-reviewer rule needs one of:
+#   · two distinct owning teams on those lines, so "require review from Code
+#     Owners" demands an approval from each — the usual way to get to two; or
+#   · a repository ruleset with a path condition, which can carry its own
+#     required-approval count.
+#
+# Neither is possible on a single-account repository: `ghonem100` is a personal
+# account, so there are no teams, and one person cannot supply two approvals.
+# The paths are therefore listed here with their single owner, which is what is
+# enforceable today, and the two-reviewer requirement is recorded as outstanding
+# rather than quietly dropped. See the KF-S0-OPS-001 completion record.
+# ---------------------------------------------------------------------------
+
+# Everything, unless a later and more specific rule overrides it.
+# Last matching pattern wins, so order matters: broad first, narrow last.
+*                                   @ghonem100
+
+# --- Two reviewers intended (Blueprint §12) --------------------------------
+# Money. BR-06…BR-10, integer minor units, and the trigger-maintained invoice
+# totals; a rounding or allocation error here is a real financial error.
+/apps/api/src/modules/billing/      @ghonem100
+
+# Child custody. BR-01 pickup authorization and BR-11 alternation — the
+# safety-critical path where a mistake means a child leaves with the wrong
+# adult.
+/apps/api/src/modules/attendance/   @ghonem100
+
+# The tenancy kernel. The Prisma extension, the tenant context and the model
+# manifest: the code that decides whether RLS is actually applied. ADR-010.
+/apps/api/src/shared-kernel/        @ghonem100
+
+# Migrations are irreversible in production and are where a tenant table ships
+# without a policy. The migration linter gates the annotation; review gates the
+# judgement.
+/apps/api/prisma/migrations/        @ghonem100
+
+# --- Also worth a second pair of eyes --------------------------------------
+# The gates themselves. A weakened gate is invisible until something it should
+# have caught reaches production, so changes to the gates are reviewed like the
+# code they protect (workflow §4 rule 7: a wrong gate is fixed in its own PR
+# with its own justification, never disabled to land unrelated work).
+/tooling/migration-lint/            @ghonem100
+/tooling/tenancy-manifest/          @ghonem100
+/configs/eslint/                    @ghonem100
+/.github/workflows/                 @ghonem100
+/.github/CODEOWNERS                 @ghonem100
+
+# The source of truth for the API. `packages/contracts` is transcribed from the
+# approved API Contract; a change here that is not in that document is a change
+# to the contract made in the wrong place.
+/packages/contracts/                @ghonem100
+
+# Approved design documents. Phase 0–9 output; amended by decision, not by
+# drive-by edit.
+/docs/                              @ghonem100
