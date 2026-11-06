@@ -397,6 +397,34 @@ test('bootstrap.sql is the single source for M-000, and dev calls it', () => {
   assert.doesNotMatch(initScript, /CREATE ROLE/, 'dev must not keep a second copy of the DDL');
 });
 
+test('bootstrap.sql grants kf_migrator CREATE on the database, narrowly', () => {
+  const bootstrap = sqlOnly(
+    fs.readFileSync(path.join(repoRoot, 'infrastructure', 'postgres', 'bootstrap.sql'), 'utf8'),
+  );
+
+  // Required: without it `CREATE SCHEMA IF NOT EXISTS "public"` from
+  // `prisma migrate deploy` fails 42501, because PostgreSQL checks CREATE on the
+  // DATABASE before IF NOT EXISTS short-circuits.
+  assert.match(
+    bootstrap,
+    /GRANT CREATE ON DATABASE %I TO kf_migrator/,
+    'kf_migrator needs CREATE on the database for migrate deploy to work',
+  );
+
+  // And narrowly: ownership would also confer DROP DATABASE and ALTER DATABASE,
+  // and in staging/production the provider owns the database, so reassigning it
+  // may be impossible. The grant works everywhere; ownership does not.
+  assert.doesNotMatch(
+    bootstrap,
+    /ALTER DATABASE[\s\S]*OWNER TO/i,
+    'use the CREATE grant, not database ownership',
+  );
+
+  // The grant is for the DDL role alone.
+  assert.doesNotMatch(bootstrap, /GRANT CREATE ON DATABASE %I TO kf_api/);
+  assert.doesNotMatch(bootstrap, /GRANT CREATE ON DATABASE %I TO kf_worker/);
+});
+
 test('no role is granted more privilege to make a migration work', () => {
   const bootstrap = fs.readFileSync(
     path.join(repoRoot, 'infrastructure', 'postgres', 'bootstrap.sql'),

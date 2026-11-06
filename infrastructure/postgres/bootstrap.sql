@@ -142,18 +142,37 @@ GRANT ALL ON SCHEMA public TO kf_migrator;
 
 GRANT USAGE ON SCHEMA public TO kf_api, kf_worker, kf_audit_writer;
 
--- `GRANT CONNECT ON DATABASE` needs an identifier, not an expression, so the
--- database name is interpolated at run time. This keeps the file PURE SQL: no
--- psql meta-commands, no `:"DBNAME"` variable. That matters because the file is
--- run three ways — by psql from bootstrap.sh, by the compose init hook, and by
--- the integration test through a plain `pg` client, which cannot execute psql
+-- Database-level grants.
+--
+-- `GRANT ... ON DATABASE` needs an identifier, not an expression, so the name is
+-- interpolated at run time. This keeps the file PURE SQL: no psql
+-- meta-commands, no `:"DBNAME"` variable. That matters because the file is run
+-- three ways — by psql from bootstrap.sh, by the compose init hook, and by the
+-- integration test through a plain `pg` client, which cannot execute psql
 -- syntax. One file that every client can run beats three that drift.
+--
+-- CONNECT for every role. CREATE for `kf_migrator` ONLY, and it is not
+-- optional: `prisma migrate deploy` emits `CREATE SCHEMA IF NOT EXISTS
+-- "public"`, and PostgreSQL checks CREATE on the DATABASE before the
+-- IF NOT EXISTS short-circuits. Without it the very first deploy dies with
+-- `42501 permission denied for database`, even though the schema already
+-- exists and kf_migrator already owns it. Found by the integration suite
+-- against a scratch database; it would otherwise have surfaced on the first
+-- staging deploy, which is precisely what one shared bootstrap file is for.
+--
+-- Deliberately NOT `ALTER DATABASE ... OWNER TO kf_migrator`. Ownership also
+-- confers DROP DATABASE and ALTER DATABASE — far wider than the need — and in
+-- staging and production the hosting provider owns the database, so reassigning
+-- it may be impossible. The minimal grant works in every environment. kf_api,
+-- kf_worker and kf_audit_writer gain nothing here: kf_migrator remains the only
+-- role that can DDL, which is the invariant ADR-008 rests on.
 DO $$
 BEGIN
   EXECUTE format(
     'GRANT CONNECT ON DATABASE %I TO kf_api, kf_worker, kf_migrator, kf_audit_writer',
     current_database()
   );
+  EXECUTE format('GRANT CREATE ON DATABASE %I TO kf_migrator', current_database());
 END
 $$;
 

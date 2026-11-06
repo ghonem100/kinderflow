@@ -18,6 +18,21 @@
  * for real, which is the implementation of the M-000 decision (DISC-021) — it is
  * the only place that file is executed by anything other than the compose hook.
  *
+ * ---------------------------------------------------------------------------
+ * KF-S0-CI-001 MUST SET `KF_POSTGRES_PORT` EXPLICITLY.
+ *
+ * The constants below fall back to 5432, which is PostgreSQL's default and the
+ * value in `.env.example` — but NOT the port the dev stack publishes. A
+ * developer whose machine already runs PostgreSQL remaps it (the compose README
+ * says "you will hit one"), and on this machine `.env` sets 15432. The fallback
+ * exists so the suite runs with no `.env` at all against a default server; it
+ * is not a value CI should inherit by accident.
+ *
+ * In CI, pass the port of the postgres service rather than relying on the
+ * fallback. Getting it wrong does not produce a wrong result — the `before`
+ * hook fails with an actionable message naming host and port — but it fails the
+ * job for a reason that has nothing to do with the code under test.
+ * ---------------------------------------------------------------------------
  * Run: pnpm --filter @kf/api test:integration
  */
 import { test, before, after } from 'node:test';
@@ -306,9 +321,13 @@ test('the three plans seed with TODO-F1 limits', async () => {
     const { rows } = await client.query(
       'SELECT code, limits FROM "subscription_plans" ORDER BY code',
     );
+    // Declaration order, not alphabetical: PostgreSQL sorts an enum column by
+    // the order its members were declared. Worth knowing rather than working
+    // around — for capacity tiers it is the order you actually want, and any
+    // report that does `ORDER BY code` gets small-to-large for free.
     assert.deepEqual(
       rows.map((r) => r.code),
-      ['LARGE', 'MEDIUM', 'SMALL'],
+      ['SMALL', 'MEDIUM', 'LARGE'],
     );
     for (const row of rows) {
       assert.equal(row.limits._todo, 'F1', 'the marker belongs in the data, per DISC-006');
@@ -326,6 +345,29 @@ test('no feature flag was invented — DISC-026', async () => {
 // ===========================================================================
 // AC4 — kf_api's privileges
 // ===========================================================================
+
+test('kf_migrator has CREATE on the database, and kf_api does not', async () => {
+  // The defect this pins: `prisma migrate deploy` emits
+  // `CREATE SCHEMA IF NOT EXISTS "public"`, and PostgreSQL checks CREATE on the
+  // DATABASE before IF NOT EXISTS short-circuits. bootstrap.sql granted CONNECT
+  // but not CREATE, so the first deploy died with 42501 — on a database the
+  // migrator already owned the schema of. A scratch database has no OWNER, so
+  // the superuser keeps it and the grant is the only route.
+  await withClient(superUrl(SCRATCH_DB), async (client) => {
+    const { rows } = await client.query(
+      `SELECT has_database_privilege('kf_migrator', current_database(), 'CREATE') AS migrator,
+              has_database_privilege('kf_api',      current_database(), 'CREATE') AS api,
+              has_database_privilege('kf_worker',   current_database(), 'CREATE') AS worker`,
+    );
+    assert.equal(
+      rows[0].migrator,
+      true,
+      'kf_migrator cannot CREATE — migrate deploy will fail 42501',
+    );
+    assert.equal(rows[0].api, false, 'kf_api must not be able to create schemas');
+    assert.equal(rows[0].worker, false, 'kf_worker must not be able to create schemas');
+  });
+});
 
 test('AC4 — kf_api has no BYPASSRLS', async () => {
   await withClient(migratorUrl(SCRATCH_DB), async (client) => {

@@ -25,6 +25,8 @@ The script is the supported entry point: it checks prerequisites, creates `.env`
 
 Every port is overridable from `.env`. See "Port collisions" below — you will hit one.
 
+> **Anything automated must pass the port, not assume it.** `KF_POSTGRES_PORT` defaults to 5432 in `.env.example` and is commonly remapped — this machine uses 15432. `apps/api`'s integration suite falls back to 5432 when nothing is set, so **`KF-S0-CI-001` must set `KF_POSTGRES_PORT` explicitly** for its postgres service rather than inheriting that fallback. A wrong port fails the job with a message about reaching the database, which reads like a broken test rather than a misconfigured runner.
+
 ## The database trust model
 
 Dev mirrors production from day one (Sprint 0 Guide §2.1). The init script creates the four M-000 roles from Blueprint §4:
